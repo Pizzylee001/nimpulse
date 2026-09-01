@@ -1,8 +1,14 @@
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+type ChipStatus = 'idle' | 'working' | 'done' | 'declined'
+
+const props = defineProps<{
+  step: string
   title: string
   description: string
   buttonLabel: string
+  status: ChipStatus
   loading: boolean
   disabled: boolean
   error: string | null
@@ -10,10 +16,27 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{ submit: [] }>()
+
+const statusLabels: Record<ChipStatus, string> = {
+  idle: 'Idle',
+  working: 'Working',
+  done: 'Done',
+  declined: 'Declined',
+}
+
+const statusLabel = computed(() => statusLabels[props.status])
 </script>
 
 <template>
   <section class="card" :class="{ 'card--disabled': disabled }">
+    <div class="card-top">
+      <span class="card-eyebrow">{{ step }}</span>
+      <span class="chip" :class="`chip--${status}`">
+        <span v-if="status === 'working'" class="chip-spinner" aria-hidden="true" />
+        <span v-else class="chip-dot" aria-hidden="true" />
+        {{ statusLabel }}
+      </span>
+    </div>
     <h2 class="card-title">
       {{ title }}
     </h2>

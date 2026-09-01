@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, shallowRef } from 'vue'
+import { computed, onMounted, reactive, ref, shallowRef } from 'vue'
 import ActionCard from './components/ActionCard.vue'
+import PulseMark from './components/PulseMark.vue'
 import { TESTNET_RECIPIENT } from './config'
 import {
   ACTION_TIMEOUT_MS,
@@ -16,9 +17,12 @@ import {
 const SIGN_TEST_MESSAGE = 'Nimpulse wallet test'
 
 type ProviderState = 'connecting' | 'ready' | 'unavailable'
+type ChipStatus = 'idle' | 'working' | 'done' | 'declined'
 
 const provider = shallowRef<NimiqProvider | null>(null)
 const providerState = ref<ProviderState>('connecting')
+const consensus = ref<boolean | null>(null)
+const language = ref('')
 
 const connectState = reactive({
   loading: false,
@@ -41,9 +45,32 @@ const sendState = reactive({
 
 const copied = ref(false)
 
+function chipStatus(state: { loading: boolean, error: string | null }, done: boolean): ChipStatus {
+  if (state.loading) return 'working'
+  if (state.error) return 'declined'
+  return done ? 'done' : 'idle'
+}
+
+const connectChip = computed(() => chipStatus(connectState, connectState.address !== null))
+const signChip = computed(() => chipStatus(signState, signState.publicKey !== null && signState.signature !== null))
+const sendChip = computed(() => chipStatus(sendState, sendState.hash !== null))
+
+const providerLabel = computed(() => {
+  if (providerState.value === 'ready') return 'nimiq pay'
+  if (providerState.value === 'connecting') return 'detecting'
+  return 'not inside nimiq pay'
+})
+
+const consensusLabel = computed(() => {
+  if (providerState.value !== 'ready') return 'n/a'
+  if (consensus.value === null) return 'checking'
+  return consensus.value ? 'established' : 'syncing'
+})
+
 onMounted(async () => {
-  const { language, source } = detectLanguage()
-  console.info(`[nimpulse] language: ${language} (source: ${source})`)
+  const detected = detectLanguage()
+  language.value = detected.language
+  console.info(`[nimpulse] language: ${detected.language} (source: ${detected.source})`)
 
   try {
     provider.value = await initProvider()
@@ -52,6 +79,16 @@ onMounted(async () => {
   catch (error) {
     console.info('[nimpulse] Nimiq provider unavailable:', error)
     providerState.value = 'unavailable'
+    return
+  }
+
+  // Read-only consensus check, no confirmation dialog.
+  try {
+    consensus.value = await provider.value.isConsensusEstablished()
+  }
+  catch (error) {
+    console.info('[nimpulse] consensus check failed:', error)
+    consensus.value = null
   }
 })
 
@@ -173,8 +210,13 @@ async function copyHash() {
   <div class="app-shell">
     <div class="app-column">
       <header class="app-header">
-        <h1 class="wordmark">Nimpulse</h1>
+        <div class="hero-brand">
+          <PulseMark variant="mark" />
+          <h1 class="wordmark">Nimpulse</h1>
+        </div>
         <p class="tagline">Call the market. Win the pot.</p>
+        <p class="hero-sub">Daily 1v1 prediction duels inside Nimiq Pay.</p>
+        <PulseMark variant="line" />
         <p v-if="providerState === 'connecting'" class="status-line">
           Connecting to Nimiq Pay…
         </p>
@@ -193,9 +235,11 @@ async function copyHash() {
 
       <main class="card-stack">
         <ActionCard
+          step="Step 1"
           title="Connect wallet"
           description="Link your Nimiq Pay wallet to Nimpulse."
           button-label="Connect wallet"
+          :status="connectChip"
           :loading="connectState.loading"
           :disabled="providerState !== 'ready'"
           :error="connectState.error"
@@ -209,9 +253,11 @@ async function copyHash() {
         </ActionCard>
 
         <ActionCard
+          step="Step 2"
           title="Sign test message"
           description="Prove wallet access by signing a fixed message."
           button-label="Sign message"
+          :status="signChip"
           :loading="signState.loading"
           :disabled="providerState !== 'ready'"
           :error="signState.error"
@@ -227,9 +273,11 @@ async function copyHash() {
         </ActionCard>
 
         <ActionCard
+          step="Step 3"
           title="Send 1 testnet NIM"
           description="Fire a 1 NIM test transaction with a nimpulse-test memo."
           button-label="Send 1 NIM"
+          :status="sendChip"
           :loading="sendState.loading"
           :disabled="providerState !== 'ready'"
           :error="sendState.error"
@@ -249,6 +297,10 @@ async function copyHash() {
           </template>
         </ActionCard>
       </main>
+
+      <footer class="status-footer">
+        provider: {{ providerLabel }} | consensus: {{ consensusLabel }} | lang: {{ language || 'unknown' }}
+      </footer>
     </div>
   </div>
 </template>

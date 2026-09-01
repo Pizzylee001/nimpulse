@@ -14,6 +14,11 @@ body {
   margin: 0;
   min-height: 100vh;
   background-color: var(--bg);
+  /* Faint terminal grid. If it is noticeable at a glance, it is too strong. */
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
   color: var(--text);
   font-family: var(--font-text);
   font-size: var(--text-body);
@@ -47,9 +52,15 @@ body {
     calc(var(--page-padding) + env(safe-area-inset-left));
 }
 
-/* Header */
+/* Hero */
 .app-header {
   margin-bottom: 24px;
+}
+
+.hero-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .wordmark {
@@ -62,6 +73,73 @@ body {
 .tagline {
   margin: 4px 0 0;
   color: var(--text-muted);
+}
+
+.hero-sub {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-small);
+}
+
+.pulse-mark {
+  width: 30px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.pulse-line {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+}
+
+.pulse-stroke {
+  stroke: var(--primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.pulse-node {
+  fill: var(--gold);
+}
+
+/* One-pass draw animation, then the line stays static */
+.hero-wave-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: nimpulse-draw 1200ms ease-out 150ms forwards;
+}
+
+.hero-wave-node {
+  opacity: 0;
+  animation: nimpulse-fade-in 300ms ease 1300ms forwards;
+}
+
+@keyframes nimpulse-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes nimpulse-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-wave-path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .hero-wave-node {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 .status-line {
@@ -113,6 +191,21 @@ body {
   opacity: 0.55;
 }
 
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-eyebrow {
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
 .card-title {
   margin: 0;
   font-size: var(--text-title);
@@ -124,6 +217,56 @@ body {
   color: var(--text-muted);
 }
 
+/* Status chip */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.chip-dot {
+  width: var(--chip-dot-size);
+  height: var(--chip-dot-size);
+  border-radius: 50%;
+  background-color: var(--text-muted);
+}
+
+.chip--working {
+  color: var(--primary);
+}
+
+.chip--done {
+  color: var(--yes);
+}
+
+.chip--done .chip-dot {
+  background-color: var(--yes);
+}
+
+.chip--declined {
+  color: var(--no);
+}
+
+.chip--declined .chip-dot {
+  background-color: var(--no);
+}
+
+.chip-spinner {
+  width: var(--chip-dot-size);
+  height: var(--chip-dot-size);
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: nimpulse-spin 800ms linear infinite;
+}
+
+/* Results */
 .card-result {
   display: flex;
   flex-direction: column;
@@ -240,4 +383,13 @@ body {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Footer status line */
+.status-footer {
+  margin-top: 24px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
 }

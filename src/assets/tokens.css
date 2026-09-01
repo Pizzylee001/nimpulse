@@ -24,6 +24,7 @@
   /* Derived colors, kept here so components stay token-only */
   --primary-glow: rgba(5, 130, 202, 0.16);
   --spinner-track: rgba(255, 255, 255, 0.35);
+  --grid-line: rgba(255, 255, 255, 0.03);
 
   /* Typography */
   --font-text: "Mulish", system-ui, sans-serif;
@@ -36,11 +37,14 @@
   /* Shape and depth */
   --radius-card: 16px;
   --radius-button: 12px;
+  --radius-pill: 999px;
   --overlay-blur: 12px;
 
   /* Layout */
   --page-padding: 16px;
   --content-max-width: 480px;
+  --grid-size: 48px;
+  --chip-dot-size: 6px;
 
   /* Motion */
   --transition-fast: 150ms ease;
