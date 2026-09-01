@@ -330,6 +330,11 @@ async function copyHash() {
 </script>
 
 <template>
+  <div class="bg-grid" aria-hidden="true" />
+  <div class="bg-ambient" aria-hidden="true">
+    <div class="ambient-line ambient-line--faint" />
+    <div class="ambient-line" />
+  </div>
   <div class="app-shell">
     <div class="app-column">
       <header class="app-header">
