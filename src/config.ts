@@ -1,3 +1,2 @@
-// Placeholder testnet recipient for the Phase 1 wallet test transaction.
-// Replace with the address that should receive the 1 NIM test send.
-export const TESTNET_RECIPIENT = 'NQ07 0000 0000 0000 0000 0000 0000 0000 0000'
+// Public testnet recipient for the Phase 1 wallet test transaction.
+export const TESTNET_RECIPIENT = 'NQ63 JTFC 7FGD 342J 1HR7 CL8N LQ5E JB04 T80Y'

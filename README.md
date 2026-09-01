@@ -1,11 +1,11 @@
-# Nimpulse
+# NimPulse
 
-1v1 prediction duels inside Nimiq Pay. Call the market. Win the pot.
+1v1 market prediction duels inside Nimiq Pay. Call the market. Win the pot.
 
-This repository currently contains the Phase 1 technical foundation: a styled
-single screen that proves the wallet connection works end to end (connect,
-sign, send 1 testnet NIM). Duel logic, backends, and leaderboards arrive in
-later phases.
+This repository contains the Phase 1 technical foundation: a styled single
+screen that proves the wallet connection works end to end (connect, sign,
+send 1 testnet NIM). Duel logic, backends, and leaderboards arrive in later
+phases.
 
 ## Stack
 
@@ -41,6 +41,8 @@ the phone itself.
 6. In the app, run the three cards in order: Connect wallet, Sign test
    message, Send 1 testnet NIM. Each action shows a native confirmation
    dialog in Nimiq Pay.
+7. Use Disconnect in Step 1 to clear the complete NimPulse test session.
+   This does not disconnect or delete the wallet from Nimiq Pay.
 
 Opened outside Nimiq Pay (for example in a desktop browser), the page renders
 a notice explaining that the app must be opened inside Nimiq Pay, with the
@@ -48,8 +50,7 @@ wallet cards visible but disabled.
 
 ## Live URL
 
-Deployed with Vercel from this repository. The URL will be added here after
-the first deploy.
+https://nimpulse.vercel.app
 
 ## License
 

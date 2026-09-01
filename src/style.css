@@ -335,6 +335,8 @@ body {
   transition:
     transform var(--transition-fast),
     background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
     opacity var(--transition-fast);
 }
 
@@ -372,15 +374,22 @@ body {
   transform: scale(0.98);
 }
 
-/* Button row: primary action grows, ghost Clear sits beside it */
-.button-row {
-  display: flex;
-  gap: 12px;
+.btn-danger-outline {
+  width: 100%;
+  background-color: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
 }
 
-.button-row .btn-primary {
-  flex: 1;
-  width: auto;
+.btn-danger-outline:active:not(:disabled) {
+  background-color: var(--surface-raised);
+  transform: scale(0.98);
+}
+
+.card-helper {
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-small);
 }
 
 /* Wallet pill in the header once connected */
@@ -444,7 +453,7 @@ body {
   width: 16px;
   height: 16px;
   border: 2px solid var(--spinner-track);
-  border-top-color: var(--text);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: nimpulse-spin 800ms linear infinite;
 }
@@ -455,11 +464,3 @@ body {
   }
 }
 
-/* Footer status line */
-.status-footer {
-  margin-top: 24px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-small);
-  font-variant-numeric: tabular-nums;
-}

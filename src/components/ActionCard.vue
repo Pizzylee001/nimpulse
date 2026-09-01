@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 type ChipStatus = 'idle' | 'working' | 'done' | 'declined'
+type ButtonVariant = 'primary' | 'danger'
 
 const props = defineProps<{
   step: string
@@ -14,12 +15,13 @@ const props = defineProps<{
   error: string | null
   hasResult: boolean
   buttonDisabled?: boolean
-  clearable?: boolean
+  buttonVariant?: ButtonVariant
+  helper?: string | null
   pulse?: boolean
   pulseMoney?: boolean
 }>()
 
-const emit = defineEmits<{ submit: [], clear: [] }>()
+const emit = defineEmits<{ submit: [] }>()
 
 const statusLabels: Record<ChipStatus, string> = {
   idle: 'Idle',
@@ -29,6 +31,7 @@ const statusLabels: Record<ChipStatus, string> = {
 }
 
 const statusLabel = computed(() => statusLabels[props.status])
+const buttonClass = computed(() => props.buttonVariant === 'danger' ? 'btn-danger-outline' : 'btn-primary')
 </script>
 
 <template>
@@ -60,25 +63,18 @@ const statusLabel = computed(() => statusLabels[props.status])
     <p v-if="error" class="card-error" role="alert">
       {{ error }}
     </p>
-    <div class="button-row">
-      <button
-        class="btn btn-primary"
-        type="button"
-        :disabled="disabled || loading || buttonDisabled"
-        @click="emit('submit')"
-      >
-        <span v-if="loading" class="spinner" aria-hidden="true" />
-        {{ loading ? 'Working…' : buttonLabel }}
-      </button>
-      <button
-        v-if="clearable"
-        class="btn btn-ghost"
-        type="button"
-        :disabled="loading"
-        @click="emit('clear')"
-      >
-        Clear
-      </button>
-    </div>
+    <button
+      class="btn"
+      :class="buttonClass"
+      type="button"
+      :disabled="disabled || loading || buttonDisabled"
+      @click="emit('submit')"
+    >
+      <span v-if="loading" class="spinner" aria-hidden="true" />
+      {{ loading ? 'Working...' : buttonLabel }}
+    </button>
+    <p v-if="helper" class="card-helper">
+      {{ helper }}
+    </p>
   </section>
 </template>

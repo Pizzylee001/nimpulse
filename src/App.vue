@@ -17,7 +17,7 @@ import {
   type NimiqProvider,
 } from './lib/nimiq'
 
-const SIGN_TEST_MESSAGE = 'Nimpulse wallet test'
+const SIGN_TEST_MESSAGE = 'NimPulse wallet test'
 
 type ProviderState = 'connecting' | 'ready' | 'unavailable'
 type ChipStatus = 'idle' | 'working' | 'done' | 'declined'
@@ -30,19 +30,22 @@ interface CardState {
 
 /*
  * Rehydrate results and count boots. If a Nimiq Pay confirmation dialog
- * ever reloads the WebView, boots increments and the cards restore their
- * results instead of silently resetting to Idle.
+ * reloads the WebView, the session results restore instead of resetting.
  */
 const snapshot = loadFoundationSnapshot()
 snapshot.boots += 1
+if (!snapshot.address) {
+  snapshot.publicKey = null
+  snapshot.signature = null
+  snapshot.hash = null
+}
 saveFoundationSnapshot(snapshot)
 console.info(`[nimpulse] boot ${snapshot.boots}`)
 
+const boots = snapshot.boots
 const provider = shallowRef<NimiqProvider | null>(null)
 const providerState = ref<ProviderState>('connecting')
-const consensus = ref<boolean | null>(null)
-const language = ref('')
-const boots = ref(snapshot.boots)
+let sessionVersion = 0
 
 const connectState = reactive<CardState & { address: string | null }>({
   loading: false,
@@ -70,7 +73,7 @@ const copied = ref(false)
 
 function persist() {
   saveFoundationSnapshot({
-    boots: boots.value,
+    boots,
     address: connectState.address,
     publicKey: signState.publicKey,
     signature: signState.signature,
@@ -95,32 +98,25 @@ function chipStatus(state: CardState, done: boolean): ChipStatus {
 }
 
 const connectDone = computed(() => connectState.address !== null)
-const signDone = computed(() => signState.publicKey !== null && signState.signature !== null)
-const sendDone = computed(() => sendState.hash !== null)
+const signDone = computed(() => connectState.address !== null && signState.publicKey !== null && signState.signature !== null)
+const sendDone = computed(() => connectState.address !== null && sendState.hash !== null)
 
 const connectChip = computed(() => chipStatus(connectState, connectDone.value))
 const signChip = computed(() => chipStatus(signState, signDone.value))
 const sendChip = computed(() => chipStatus(sendState, sendDone.value))
 
-const connectButtonLabel = computed(() => connectDone.value ? 'Connected' : 'Connect wallet')
-const signButtonLabel = computed(() => signDone.value ? 'Sign again' : 'Sign message')
-const sendButtonLabel = computed(() => sendDone.value ? 'Send again' : 'Send 1 NIM')
-
-const providerLabel = computed(() => {
-  if (providerState.value === 'ready') return 'nimiq pay'
-  if (providerState.value === 'connecting') return 'detecting'
-  return 'not inside nimiq pay'
+const connectButtonLabel = computed(() => connectDone.value ? 'Disconnect' : 'Connect wallet')
+const signButtonLabel = computed(() => {
+  if (!connectDone.value) return 'Connect wallet first'
+  return signDone.value ? 'Signed' : 'Sign message'
 })
-
-const consensusLabel = computed(() => {
-  if (providerState.value !== 'ready') return 'n/a'
-  if (consensus.value === null) return 'checking'
-  return consensus.value ? 'established' : 'syncing'
+const sendButtonLabel = computed(() => {
+  if (!connectDone.value) return 'Connect wallet first'
+  return sendDone.value ? 'Sent' : 'Send 1 NIM'
 })
 
 onMounted(async () => {
   const detected = detectLanguage()
-  language.value = detected.language
   console.info(`[nimpulse] language: ${detected.language} (source: ${detected.source})`)
 
   try {
@@ -135,13 +131,21 @@ onMounted(async () => {
 
   // Read-only consensus check, no confirmation dialog.
   try {
-    consensus.value = await provider.value.isConsensusEstablished()
+    const established = await provider.value.isConsensusEstablished()
+    console.info(`[nimpulse] consensus established: ${established}`)
   }
   catch (error) {
     console.info('[nimpulse] consensus check failed:', error)
-    consensus.value = null
   }
 })
+
+async function handleConnectAction() {
+  if (connectDone.value) {
+    disconnectSession()
+    return
+  }
+  await connectWallet()
+}
 
 async function connectWallet() {
   const nimiq = provider.value
@@ -176,7 +180,8 @@ async function connectWallet() {
 
 async function signTestMessage() {
   const nimiq = provider.value
-  if (!nimiq || signState.loading) return
+  if (!nimiq || !connectDone.value || signState.loading || signDone.value) return
+  const requestSession = sessionVersion
   signState.loading = true
   signState.error = null
   try {
@@ -195,13 +200,16 @@ async function signTestMessage() {
     if (typeof publicKey !== 'string' || typeof signature !== 'string') {
       throw new Error('Unexpected sign response from Nimiq Pay.')
     }
+    if (requestSession !== sessionVersion || !connectDone.value) return
     signState.publicKey = publicKey
     signState.signature = signature
     persist()
     triggerPulse(signState)
   }
   catch (error) {
-    signState.error = describeWalletError(error)
+    if (requestSession === sessionVersion) {
+      signState.error = describeWalletError(error)
+    }
   }
   finally {
     signState.loading = false
@@ -210,7 +218,8 @@ async function signTestMessage() {
 
 async function sendTestTransaction() {
   const nimiq = provider.value
-  if (!nimiq || sendState.loading) return
+  if (!nimiq || !connectDone.value || sendState.loading || sendDone.value) return
+  const requestSession = sessionVersion
   sendState.loading = true
   sendState.error = null
   try {
@@ -235,36 +244,48 @@ async function sendTestTransaction() {
     if (!hash) {
       throw new Error('Unexpected transaction response from Nimiq Pay.')
     }
+    if (requestSession !== sessionVersion || !connectDone.value) return
     sendState.hash = hash
     persist()
     triggerPulse(sendState)
   }
   catch (error) {
-    sendState.error = describeWalletError(error)
+    if (requestSession === sessionVersion) {
+      sendState.error = describeWalletError(error)
+    }
   }
   finally {
     sendState.loading = false
   }
 }
 
-function clearConnect() {
-  connectState.address = null
-  connectState.error = null
-  persist()
-}
+function disconnectSession() {
+  sessionVersion += 1
 
-function clearSign() {
+  connectState.address = null
+  connectState.loading = false
+  connectState.error = null
+  connectState.pulse = false
+
   signState.publicKey = null
   signState.signature = null
+  signState.loading = false
   signState.error = null
-  persist()
-}
+  signState.pulse = false
 
-function clearSend() {
   sendState.hash = null
+  sendState.loading = false
   sendState.error = null
+  sendState.pulse = false
+
   copied.value = false
-  persist()
+  saveFoundationSnapshot({
+    boots,
+    address: null,
+    publicKey: null,
+    signature: null,
+    hash: null,
+  })
 }
 
 async function copyHash() {
@@ -314,14 +335,14 @@ async function copyHash() {
       <header class="app-header">
         <div class="hero-brand">
           <PulseMark variant="mark" />
-          <h1 class="wordmark">Nimpulse</h1>
+          <h1 class="wordmark">NimPulse</h1>
           <span v-if="connectState.address" class="wallet-pill mono">
             <PulseMark variant="mark" />
             {{ truncateMiddle(connectState.address) }}
           </span>
         </div>
         <p class="tagline">Call the market. Win the pot.</p>
-        <p class="hero-sub">Daily 1v1 prediction duels inside Nimiq Pay.</p>
+        <p class="hero-sub">1v1 market prediction duels inside Nimiq Pay.</p>
         <PulseMark variant="line" />
         <p v-if="providerState === 'connecting'" class="status-line">
           Connecting to Nimiq Pay…
@@ -330,7 +351,7 @@ async function copyHash() {
 
       <div v-if="providerState === 'unavailable'" class="notice" role="status">
         <h2 class="notice-title">
-          Nimpulse runs inside Nimiq Pay
+          NimPulse runs inside Nimiq Pay
         </h2>
         <p class="notice-text">
           This mini app needs the Nimiq Pay wallet to work. Open Nimiq Pay on your
@@ -343,18 +364,17 @@ async function copyHash() {
         <ActionCard
           step="Step 1"
           title="Connect wallet"
-          description="Link your Nimiq Pay wallet to Nimpulse."
+          description="Link your Nimiq Pay wallet to NimPulse."
           :button-label="connectButtonLabel"
+          :button-variant="connectDone ? 'danger' : 'primary'"
           :status="connectChip"
           :loading="connectState.loading"
           :disabled="providerState !== 'ready'"
-          :button-disabled="connectDone"
-          :clearable="connectDone"
           :error="connectState.error"
           :has-result="connectDone"
+          :helper="connectDone ? 'Disconnects NimPulse and clears this test session.' : null"
           :pulse="connectState.pulse"
-          @submit="connectWallet"
-          @clear="clearConnect"
+          @submit="handleConnectAction"
         >
           <template v-if="connectState.address">
             <span class="result-label">Connected address</span>
@@ -370,12 +390,11 @@ async function copyHash() {
           :status="signChip"
           :loading="signState.loading"
           :disabled="providerState !== 'ready'"
-          :clearable="signDone"
+          :button-disabled="!connectDone || signDone"
           :error="signState.error"
           :has-result="signDone"
           :pulse="signState.pulse"
           @submit="signTestMessage"
-          @clear="clearSign"
         >
           <template v-if="signState.publicKey && signState.signature">
             <span class="result-label">Public key</span>
@@ -393,13 +412,12 @@ async function copyHash() {
           :status="sendChip"
           :loading="sendState.loading"
           :disabled="providerState !== 'ready'"
-          :clearable="sendDone"
+          :button-disabled="!connectDone || sendDone"
           :error="sendState.error"
           :has-result="sendDone"
           :pulse="sendState.pulse"
           pulse-money
           @submit="sendTestTransaction"
-          @clear="clearSend"
         >
           <template v-if="sendState.hash">
             <span class="result-label">Transaction hash</span>
@@ -414,10 +432,6 @@ async function copyHash() {
           </template>
         </ActionCard>
       </main>
-
-      <footer class="status-footer">
-        provider: {{ providerLabel }} | consensus: {{ consensusLabel }} | lang: {{ language || 'unknown' }} | boots: {{ boots }}
-      </footer>
     </div>
   </div>
 </template>
