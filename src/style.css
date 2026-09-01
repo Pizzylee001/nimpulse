@@ -103,7 +103,7 @@ body {
 }
 
 .pulse-node {
-  fill: var(--gold);
+  fill: var(--text);
 }
 
 /* One-pass draw animation, then the line stays static */
@@ -303,6 +303,9 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 8px 10px;
+  background-color: var(--money-glow);
+  border-radius: var(--radius-button);
 }
 
 .hash-row .result-value {
@@ -348,7 +351,7 @@ body {
 .btn-primary {
   width: 100%;
   background-color: var(--primary);
-  color: var(--text);
+  color: var(--on-primary);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -367,6 +370,73 @@ body {
 .btn-ghost:active:not(:disabled) {
   background-color: var(--surface-raised);
   transform: scale(0.98);
+}
+
+/* Button row: primary action grows, ghost Clear sits beside it */
+.button-row {
+  display: flex;
+  gap: 12px;
+}
+
+.button-row .btn-primary {
+  flex: 1;
+  width: auto;
+}
+
+/* Wallet pill in the header once connected */
+.wallet-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wallet-pill .pulse-mark {
+  width: 16px;
+}
+
+/* One-time gold border pulse when a card flips to Done */
+.card--pulse {
+  animation: nimpulse-pulse-border var(--pulse-duration) ease-out 1;
+}
+
+/* Send card pulses with the money glow */
+.card--pulse-money {
+  animation: nimpulse-pulse-money var(--pulse-duration) ease-out 1;
+}
+
+@keyframes nimpulse-pulse-border {
+  0% {
+    border-color: var(--gold);
+  }
+  100% {
+    border-color: var(--border);
+  }
+}
+
+@keyframes nimpulse-pulse-money {
+  0% {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 0 var(--money-glow);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card--pulse,
+  .card--pulse-money {
+    animation: none;
+  }
 }
 
 /* Loading spinner shown inside busy buttons */

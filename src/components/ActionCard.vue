@@ -13,9 +13,13 @@ const props = defineProps<{
   disabled: boolean
   error: string | null
   hasResult: boolean
+  buttonDisabled?: boolean
+  clearable?: boolean
+  pulse?: boolean
+  pulseMoney?: boolean
 }>()
 
-const emit = defineEmits<{ submit: [] }>()
+const emit = defineEmits<{ submit: [], clear: [] }>()
 
 const statusLabels: Record<ChipStatus, string> = {
   idle: 'Idle',
@@ -28,7 +32,14 @@ const statusLabel = computed(() => statusLabels[props.status])
 </script>
 
 <template>
-  <section class="card" :class="{ 'card--disabled': disabled }">
+  <section
+    class="card"
+    :class="{
+      'card--disabled': disabled,
+      'card--pulse': pulse && !pulseMoney,
+      'card--pulse-money': pulse && pulseMoney,
+    }"
+  >
     <div class="card-top">
       <span class="card-eyebrow">{{ step }}</span>
       <span class="chip" :class="`chip--${status}`">
@@ -49,14 +60,25 @@ const statusLabel = computed(() => statusLabels[props.status])
     <p v-if="error" class="card-error" role="alert">
       {{ error }}
     </p>
-    <button
-      class="btn btn-primary"
-      type="button"
-      :disabled="disabled || loading"
-      @click="emit('submit')"
-    >
-      <span v-if="loading" class="spinner" aria-hidden="true" />
-      {{ loading ? 'Working…' : buttonLabel }}
-    </button>
+    <div class="button-row">
+      <button
+        class="btn btn-primary"
+        type="button"
+        :disabled="disabled || loading || buttonDisabled"
+        @click="emit('submit')"
+      >
+        <span v-if="loading" class="spinner" aria-hidden="true" />
+        {{ loading ? 'Working…' : buttonLabel }}
+      </button>
+      <button
+        v-if="clearable"
+        class="btn btn-ghost"
+        type="button"
+        :disabled="loading"
+        @click="emit('clear')"
+      >
+        Clear
+      </button>
+    </div>
   </section>
 </template>
