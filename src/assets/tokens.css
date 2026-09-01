@@ -1,0 +1,48 @@
+/*
+ * Nimpulse design tokens.
+ * Single source of truth for color, type, shape, layout, and motion.
+ * Styles must reference these variables, never raw values.
+ *
+ * Color discipline: blue means "do something", gold means "money",
+ * green and red mean "sides". Never mix these meanings.
+ */
+:root {
+  /* Color */
+  --bg: #0A0E1A;
+  --surface: #121829;
+  --surface-raised: #1A2138;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #F2F5FA;
+  --text-muted: #9AA4B8;
+  --primary: #0582CA;
+  --primary-pressed: #0468A3;
+  --gold: #F5C542;
+  --yes: #22C55E;
+  --no: #EF4444;
+  --danger: #EF4444;
+
+  /* Derived colors, kept here so components stay token-only */
+  --primary-glow: rgba(5, 130, 202, 0.16);
+  --spinner-track: rgba(255, 255, 255, 0.35);
+
+  /* Typography */
+  --font-text: "Mulish", system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --text-small: 12px;
+  --text-body: 14px;
+  --text-title: 20px;
+  --text-hero: 32px;
+
+  /* Shape and depth */
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --overlay-blur: 12px;
+
+  /* Layout */
+  --page-padding: 16px;
+  --content-max-width: 480px;
+
+  /* Motion */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+}

@@ -1,0 +1,243 @@
+@import './assets/tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-text);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+/* Desktop: subtle radial glow behind the centered content column.
+   Breakpoint is fixed at 768px per the design system. */
+@media (min-width: 768px) {
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(640px 420px at 50% 12%, var(--primary-glow), transparent 70%);
+    pointer-events: none;
+  }
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.app-column {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding:
+    calc(24px + env(safe-area-inset-top))
+    calc(var(--page-padding) + env(safe-area-inset-right))
+    calc(32px + env(safe-area-inset-bottom))
+    calc(var(--page-padding) + env(safe-area-inset-left));
+}
+
+/* Header */
+.app-header {
+  margin-bottom: 24px;
+}
+
+.wordmark {
+  margin: 0;
+  font-size: var(--text-hero);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+.status-line {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+
+/* Notice shown when the Nimiq provider is unavailable */
+.notice {
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(var(--overlay-blur));
+  -webkit-backdrop-filter: blur(var(--overlay-blur));
+}
+
+.notice-title {
+  margin: 0 0 8px;
+  font-size: var(--text-title);
+  font-weight: 700;
+}
+
+.notice-text {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* Cards */
+.card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  transition: opacity var(--transition-normal);
+}
+
+.card--disabled {
+  opacity: 0.55;
+}
+
+.card-title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 700;
+}
+
+.card-description {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.card-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+}
+
+.result-label {
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.result-value {
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.gold {
+  color: var(--gold);
+}
+
+.hash-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hash-row .result-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-error {
+  margin: 0;
+  color: var(--danger);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--radius-button);
+  font-family: var(--font-text);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    background-color var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  width: 100%;
+  background-color: var(--primary);
+  color: var(--text);
+}
+
+.btn-primary:active:not(:disabled) {
+  background-color: var(--primary-pressed);
+  transform: scale(0.98);
+}
+
+.btn-ghost {
+  flex-shrink: 0;
+  min-width: 88px;
+  background-color: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-ghost:active:not(:disabled) {
+  background-color: var(--surface-raised);
+  transform: scale(0.98);
+}
+
+/* Loading spinner shown inside busy buttons */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--spinner-track);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: nimpulse-spin 800ms linear infinite;
+}
+
+@keyframes nimpulse-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
