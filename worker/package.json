@@ -1,0 +1,19 @@
+{
+  "name": "nimpulse-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply nimpulse --local",
+    "migrate:remote": "wrangler d1 migrations apply nimpulse --remote"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260902.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.128.0"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.4.0"
+  }
+}

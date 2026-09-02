@@ -35,3 +35,6 @@ skills-lock.json
 # Local validation artifacts (headless browser, screenshots)
 .pw-browsers/
 shot-*.png
+
+# Wrangler local state
+worker/.wrangler/

@@ -1,0 +1,14 @@
+name = "nimpulse-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nimpulse"
+database_id = "3d28e117-809d-4434-880d-9c9f012648f6"
+
+[triggers]
+crons = ["5 0 * * *", "10 0 * * *"]
+
+[observability]
+enabled = true

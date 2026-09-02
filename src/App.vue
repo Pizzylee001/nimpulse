@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
 import ActionCard from './components/ActionCard.vue'
 import PulseMark from './components/PulseMark.vue'
+import QuestionCard from './components/QuestionCard.vue'
+import RecentCard from './components/RecentCard.vue'
 import { TESTNET_RECIPIENT } from './config'
+import { getToday, postPick, type Side, type TodayResponse } from './lib/api'
 import {
   ACTION_TIMEOUT_MS,
   describeWalletError,
@@ -28,10 +31,6 @@ interface CardState {
   pulse: boolean
 }
 
-/*
- * Rehydrate results and count boots. If a Nimiq Pay confirmation dialog
- * reloads the WebView, the session results restore instead of resetting.
- */
 const snapshot = loadFoundationSnapshot()
 snapshot.boots += 1
 if (!snapshot.address) {
@@ -70,6 +69,11 @@ const sendState = reactive<CardState & { hash: string | null }>({
 })
 
 const copied = ref(false)
+
+const todayData = ref<TodayResponse | null>(null)
+const apiLoading = ref(true)
+const apiError = ref<string | null>(null)
+const pickFlow = reactive({ loading: false, side: null as Side | null, error: null as string | null })
 
 function persist() {
   saveFoundationSnapshot({
@@ -115,9 +119,36 @@ const sendButtonLabel = computed(() => {
   return sendDone.value ? 'Sent' : 'Send 1 NIM'
 })
 
+async function fetchToday() {
+  apiLoading.value = true
+  apiError.value = null
+  try {
+    todayData.value = await getToday(connectState.address)
+  }
+  catch (error) {
+    apiError.value = error instanceof Error ? error.message : 'Could not load the daily question.'
+  }
+  finally {
+    apiLoading.value = false
+  }
+}
+
+let pollTimer: ReturnType<typeof setInterval> | undefined
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    void fetchToday()
+  }
+}
+
 onMounted(async () => {
   const detected = detectLanguage()
   console.info(`[nimpulse] language: ${detected.language} (source: ${detected.source})`)
+  void fetchToday()
+  pollTimer = setInterval(() => {
+    void fetchToday()
+  }, 60_000)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 
   try {
     provider.value = await initProvider()
@@ -139,13 +170,14 @@ onMounted(async () => {
   }
 })
 
-async function handleConnectAction() {
-  if (connectDone.value) {
-    disconnectSession()
-    return
-  }
-  await connectWallet()
-}
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+})
+
+watch(connectDone, () => {
+  void fetchToday()
+})
 
 async function connectWallet() {
   const nimiq = provider.value
@@ -176,6 +208,66 @@ async function connectWallet() {
   finally {
     connectState.loading = false
   }
+}
+
+async function submitPick(side: Side) {
+  const nimiq = provider.value
+  const question = todayData.value?.today
+  if (!nimiq || !question || pickFlow.loading || question.myPick) return
+
+  if (!connectDone.value) {
+    await connectWallet()
+    if (!connectDone.value) return
+  }
+  const wallet = connectState.address
+  if (!wallet) return
+
+  pickFlow.loading = true
+  pickFlow.side = side
+  pickFlow.error = null
+  try {
+    // Canonical message, byte for byte what the server rebuilds.
+    const message = `NimPulse pick: ${question.id} ${side} ${wallet} ${question.resolvesAt}`
+    const raw = await withTimeout(
+      nimiq.sign(message),
+      ACTION_TIMEOUT_MS,
+      'Nimiq Pay did not respond in time. Try again.',
+    )
+    const signed = unwrapProviderResult<unknown>(raw)
+    if (typeof signed !== 'object' || signed === null) {
+      throw new Error('Unexpected sign response from Nimiq Pay.')
+    }
+    const payload = signed as { publicKey?: unknown, signature?: unknown }
+    const publicKey = payload.publicKey
+    const signature = payload.signature
+    if (typeof publicKey !== 'string' || typeof signature !== 'string') {
+      throw new Error('Unexpected sign response from Nimiq Pay.')
+    }
+    await postPick({
+      questionId: question.id,
+      side,
+      wallet,
+      expiresAt: question.resolvesAt,
+      publicKey,
+      signature,
+    })
+    await fetchToday()
+  }
+  catch (error) {
+    pickFlow.error = describeWalletError(error)
+  }
+  finally {
+    pickFlow.loading = false
+    pickFlow.side = null
+  }
+}
+
+async function handleConnectAction() {
+  if (connectDone.value) {
+    disconnectSession()
+    return
+  }
+  await connectWallet()
 }
 
 async function signTestMessage() {
@@ -278,6 +370,8 @@ function disconnectSession() {
   sendState.error = null
   sendState.pulse = false
 
+  pickFlow.error = null
+
   copied.value = false
   saveFoundationSnapshot({
     boots,
@@ -286,6 +380,7 @@ function disconnectSession() {
     signature: null,
     hash: null,
   })
+  void fetchToday()
 }
 
 async function copyHash() {
@@ -356,81 +451,101 @@ async function copyHash() {
         <p class="notice-text">
           This mini app needs the Nimiq Pay wallet to work. Open Nimiq Pay on your
           phone, go to Mini Apps, and load this page from the Custom URL field.
-          The wallet cards below stay disabled until then.
+          The daily question stays readable, but picking needs the wallet.
         </p>
       </div>
 
       <main class="card-stack">
-        <ActionCard
-          step="Step 1"
-          title="Connect wallet"
-          description="Link your Nimiq Pay wallet to NimPulse."
-          :button-label="connectButtonLabel"
-          :button-variant="connectDone ? 'danger' : 'primary'"
-          :status="connectChip"
-          :loading="connectState.loading"
-          :disabled="providerState !== 'ready'"
-          :error="connectState.error"
-          :has-result="connectDone"
-          :helper="connectDone ? 'Disconnects NimPulse and clears this test session.' : null"
-          :pulse="connectState.pulse"
-          @submit="handleConnectAction"
-        >
-          <template v-if="connectState.address">
-            <span class="result-label">Connected address</span>
-            <span class="result-value mono">{{ truncateMiddle(connectState.address) }}</span>
-          </template>
-        </ActionCard>
+        <QuestionCard
+          :question="todayData?.today ?? null"
+          :provider-ready="providerState === 'ready'"
+          :connected="connectDone"
+          :pick-loading="pickFlow.loading"
+          :pick-side="pickFlow.side"
+          :pick-error="pickFlow.error"
+          :api-error="apiError"
+          :api-loading="apiLoading"
+          @pick="submitPick"
+          @connect="connectWallet"
+        />
 
-        <ActionCard
-          step="Step 2"
-          title="Sign test message"
-          description="Prove wallet access by signing a fixed message."
-          :button-label="signButtonLabel"
-          :status="signChip"
-          :loading="signState.loading"
-          :disabled="providerState !== 'ready'"
-          :button-disabled="!connectDone || signDone"
-          :error="signState.error"
-          :has-result="signDone"
-          :pulse="signState.pulse"
-          @submit="signTestMessage"
-        >
-          <template v-if="signState.publicKey && signState.signature">
-            <span class="result-label">Public key</span>
-            <span class="result-value mono">{{ truncateMiddle(signState.publicKey) }}</span>
-            <span class="result-label">Signature</span>
-            <span class="result-value mono">{{ truncateMiddle(signState.signature) }}</span>
-          </template>
-        </ActionCard>
+        <RecentCard :recent="todayData?.recent ?? null" :me="todayData?.me ?? null" />
 
-        <ActionCard
-          step="Step 3"
-          title="Send 1 testnet NIM"
-          description="Fire a 1 NIM test transaction with a nimpulse-test memo."
-          :button-label="sendButtonLabel"
-          :status="sendChip"
-          :loading="sendState.loading"
-          :disabled="providerState !== 'ready'"
-          :button-disabled="!connectDone || sendDone"
-          :error="sendState.error"
-          :has-result="sendDone"
-          :pulse="sendState.pulse"
-          pulse-money
-          @submit="sendTestTransaction"
-        >
-          <template v-if="sendState.hash">
-            <span class="result-label">Transaction hash</span>
-            <div class="hash-row">
-              <span class="result-value mono gold" :title="sendState.hash">
-                {{ truncateMiddle(sendState.hash, 10, 6) }}
-              </span>
-              <button class="btn btn-ghost" type="button" @click="copyHash">
-                {{ copied ? 'Copied' : 'Copy' }}
-              </button>
-            </div>
-          </template>
-        </ActionCard>
+        <details class="foundation">
+          <summary>Foundation tests</summary>
+          <div class="card-stack">
+            <ActionCard
+              step="Step 1"
+              title="Connect wallet"
+              description="Link your Nimiq Pay wallet to NimPulse."
+              :button-label="connectButtonLabel"
+              :button-variant="connectDone ? 'danger' : 'primary'"
+              :status="connectChip"
+              :loading="connectState.loading"
+              :disabled="providerState !== 'ready'"
+              :error="connectState.error"
+              :has-result="connectDone"
+              :helper="connectDone ? 'Disconnects NimPulse and clears this test session.' : null"
+              :pulse="connectState.pulse"
+              @submit="handleConnectAction"
+            >
+              <template v-if="connectState.address">
+                <span class="result-label">Connected address</span>
+                <span class="result-value mono">{{ truncateMiddle(connectState.address) }}</span>
+              </template>
+            </ActionCard>
+
+            <ActionCard
+              step="Step 2"
+              title="Sign test message"
+              description="Prove wallet access by signing a fixed message."
+              :button-label="signButtonLabel"
+              :status="signChip"
+              :loading="signState.loading"
+              :disabled="providerState !== 'ready'"
+              :button-disabled="!connectDone || signDone"
+              :error="signState.error"
+              :has-result="signDone"
+              :pulse="signState.pulse"
+              @submit="signTestMessage"
+            >
+              <template v-if="signState.publicKey && signState.signature">
+                <span class="result-label">Public key</span>
+                <span class="result-value mono">{{ truncateMiddle(signState.publicKey) }}</span>
+                <span class="result-label">Signature</span>
+                <span class="result-value mono">{{ truncateMiddle(signState.signature) }}</span>
+              </template>
+            </ActionCard>
+
+            <ActionCard
+              step="Step 3"
+              title="Send 1 testnet NIM"
+              description="Fire a 1 NIM test transaction with a nimpulse-test memo."
+              :button-label="sendButtonLabel"
+              :status="sendChip"
+              :loading="sendState.loading"
+              :disabled="providerState !== 'ready'"
+              :button-disabled="!connectDone || sendDone"
+              :error="sendState.error"
+              :has-result="sendDone"
+              :pulse="sendState.pulse"
+              pulse-money
+              @submit="sendTestTransaction"
+            >
+              <template v-if="sendState.hash">
+                <span class="result-label">Transaction hash</span>
+                <div class="hash-row">
+                  <span class="result-value mono gold" :title="sendState.hash">
+                    {{ truncateMiddle(sendState.hash, 10, 6) }}
+                  </span>
+                  <button class="btn btn-ghost" type="button" @click="copyHash">
+                    {{ copied ? 'Copied' : 'Copy' }}
+                  </button>
+                </div>
+              </template>
+            </ActionCard>
+          </div>
+        </details>
       </main>
     </div>
   </div>

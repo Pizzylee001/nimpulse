@@ -465,3 +465,153 @@ body {
   }
 }
 
+
+/* Daily question card */
+.question-text {
+  font-size: var(--text-title);
+  line-height: 1.35;
+}
+
+.countdown {
+  margin: 0;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown--expiring {
+  color: var(--text);
+}
+
+.choice-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.choice-row .btn-primary {
+  grid-column: 1 / -1;
+}
+
+.btn-side {
+  min-height: 56px;
+  font-size: 18px;
+}
+
+.btn-yes {
+  background-color: var(--yes);
+  color: var(--on-primary);
+}
+
+.btn-no {
+  background-color: var(--no);
+  color: var(--on-primary);
+}
+
+.btn-side:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.locked-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+}
+
+.locked-line {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.locked-line strong {
+  font-size: 16px;
+}
+
+.locked-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-small);
+}
+
+.side-yes {
+  color: var(--yes);
+}
+
+.side-no {
+  color: var(--no);
+}
+
+/* Recently resolved question */
+.card--compact {
+  padding: 14px 16px;
+}
+
+.recent-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.outcome {
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+
+.recent-prices {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.recent-result {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+.recent-result strong {
+  font-size: var(--text-body);
+}
+
+.result-correct {
+  color: var(--yes);
+  font-weight: 700;
+}
+
+.result-wrong {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.streak {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* Collapsed foundation tests */
+.foundation {
+  margin-top: 4px;
+}
+
+.foundation summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.foundation summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.foundation[open] summary {
+  margin-bottom: 12px;
+}

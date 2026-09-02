@@ -2,10 +2,12 @@
 
 1v1 market prediction duels inside Nimiq Pay. Call the market. Win the pot.
 
-This repository contains the Phase 1 technical foundation: a styled single
-screen that proves the wallet connection works end to end (connect, sign,
-send 1 testnet NIM). Duel logic, backends, and leaderboards arrive in later
-phases.
+This repository contains the NimPulse foundation and the Phase 2a daily
+question engine: a styled home screen with today's market question, YES/NO
+picks signed with your Nimiq Pay wallet, and a Cloudflare Workers + D1
+backend that resolves questions from CoinGecko prices and tracks streaks.
+Staking, payments, and duel links arrive in later phases. See
+[WORKERS.md](WORKERS.md) for the backend.
 
 ## Stack
 
@@ -38,9 +40,10 @@ the phone itself.
 5. For payment testing, switch Nimiq Pay to testnet: long-press the settings
    button for 10 seconds to reveal the dev menu, then pick Testnet. The
    "Get free NIM" button on the home empty state credits testnet NIM.
-6. In the app, run the three cards in order: Connect wallet, Sign test
-   message, Send 1 testnet NIM. Each action shows a native confirmation
-   dialog in Nimiq Pay.
+6. In the app, pick YES or NO on today's question and approve the two
+   native dialogs (account access, then the pick signature). The wallet
+   test cards (connect, sign, send 1 testnet NIM) live under Foundation
+   tests at the bottom of the home screen.
 7. Use Disconnect in Step 1 to clear the complete NimPulse test session.
    This does not disconnect or delete the wallet from Nimiq Pay.
 
