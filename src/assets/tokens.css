@@ -48,17 +48,6 @@
   --grid-size: 48px;
   --chip-dot-size: 6px;
 
-  /* Ambient background pulse. The drift loop shifts the layer by exactly
-     one pattern period per cycle, so the animation is seamless. */
-  --ambient-period: 240px;
-  --ambient-height: 56px;
-  --ambient-line-opacity: 0.05;
-  --ambient-line-faint-opacity: 0.03;
-  --ambient-line-top: 120px;
-  --ambient-line-faint-top: 55%;
-  --ambient-duration: 80s;
-  --ambient-duration-faint: 64s;
-
   /* Motion */
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;

@@ -14,23 +14,15 @@ body {
   margin: 0;
   min-height: 100vh;
   background-color: var(--bg);
-  color: var(--text);
-  font-family: var(--font-text);
-  font-size: var(--text-body);
-  line-height: 1.5;
-}
-
-/* Faint terminal grid. If it is noticeable at a glance, it is too strong.
-   Kept on its own fixed layer so the ambient pulse can sit beneath it. */
-.bg-grid {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
+  /* Faint terminal grid. If it is noticeable at a glance, it is too strong. */
   background-image:
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: var(--grid-size) var(--grid-size);
+  color: var(--text);
+  font-family: var(--font-text);
+  font-size: var(--text-body);
+  line-height: 1.5;
 }
 
 /* Desktop: subtle radial glow behind the centered content column.
@@ -47,64 +39,9 @@ body {
 
 .app-shell {
   position: relative;
-  z-index: 2;
   min-height: 100vh;
 }
 
-/*
- * Ambient pulse background. Two masked layers drift horizontally behind
- * everything. The mask tile is one 240x56 pulse unit in the PulseMark
- * geometry family: flat baseline, small oscillation, tall peak, return to
- * the baseline, so tiles join seamlessly. The animation translates each
- * layer by exactly one tile width per cycle, which makes the loop seamless.
- * Transform only, no repaints, no JavaScript.
- */
-.bg-ambient {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.ambient-line {
-  position: absolute;
-  top: var(--ambient-line-top);
-  left: calc(-1 * var(--ambient-period));
-  width: calc(100% + var(--ambient-period) * 2);
-  height: var(--ambient-height);
-  background-color: var(--primary);
-  opacity: var(--ambient-line-opacity);
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 56'%3E%3Cpath d='M0 36 H32 L46 24 L62 44 L78 30 H96 L108 8 L122 44 L136 36 H240' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  -webkit-mask-repeat: repeat-x;
-  -webkit-mask-size: var(--ambient-period) var(--ambient-height);
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 56'%3E%3Cpath d='M0 36 H32 L46 24 L62 44 L78 30 H96 L108 8 L122 44 L136 36 H240' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  mask-repeat: repeat-x;
-  mask-size: var(--ambient-period) var(--ambient-height);
-  animation: ambient-drift var(--ambient-duration) linear infinite;
-  will-change: transform;
-}
-
-.ambient-line--faint {
-  top: var(--ambient-line-faint-top);
-  opacity: var(--ambient-line-faint-opacity);
-  animation-duration: var(--ambient-duration-faint);
-}
-
-@keyframes ambient-drift {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(calc(-1 * var(--ambient-period)));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ambient-line {
-    animation: none;
-  }
-}
 
 .app-column {
   max-width: var(--content-max-width);
