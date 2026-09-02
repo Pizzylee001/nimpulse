@@ -78,3 +78,64 @@ export async function getToday(wallet: string | null): Promise<TodayResponse> {
 export async function postPick(body: PickRequest): Promise<void> {
   await request('/api/pick', { method: 'POST', body: JSON.stringify(body) })
 }
+
+export interface DuelPlayer {
+  wallet: string
+  side: Side
+}
+
+export interface DuelQuestion {
+  id: number
+  asset: string
+  question: string
+  resolvesAt: string
+  secondsRemaining: number
+  outcome: Side | null
+  openPrice: number | null
+  closePrice: number | null
+}
+
+export type DuelRole = 'creator' | 'opponent' | 'spectator'
+export type DuelStatus = 'open' | 'locked' | 'resolved' | 'expired'
+
+export interface DuelData {
+  id: number
+  status: DuelStatus
+  question: DuelQuestion
+  creator: DuelPlayer
+  opponent: DuelPlayer | null
+  role: DuelRole
+  mySide: Side | null
+  winnerRole: 'creator' | 'opponent' | null
+}
+
+export interface CreateDuelRequest {
+  questionId: number
+  side: Side
+  wallet: string
+  memoBase: string
+  publicKey: string
+  signature: string
+}
+
+export interface JoinDuelRequest {
+  side: Side
+  wallet: string
+  publicKey: string
+  signature: string
+}
+
+export async function getDuel(duelId: number, wallet: string | null): Promise<DuelData> {
+  const query = wallet ? `?wallet=${encodeURIComponent(wallet)}` : ''
+  return await request(`/api/duels/${duelId}${query}`) as DuelData
+}
+
+export async function createDuel(body: CreateDuelRequest): Promise<DuelData> {
+  const result = await request('/api/duels', { method: 'POST', body: JSON.stringify(body) }) as { duel: DuelData }
+  return result.duel
+}
+
+export async function joinDuel(duelId: number, body: JoinDuelRequest): Promise<DuelData> {
+  const result = await request(`/api/duels/${duelId}/join`, { method: 'POST', body: JSON.stringify(body) }) as { duel: DuelData }
+  return result.duel
+}

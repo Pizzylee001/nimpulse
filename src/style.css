@@ -732,3 +732,214 @@ button.wallet-pill:focus-visible {
     animation: none;
   }
 }
+
+/* Challenge action inside the locked pick box */
+.btn-challenge {
+  margin-top: 8px;
+}
+
+/* Duel view */
+.duel-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.duel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.btn-back {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  background-color: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-text);
+  font-size: var(--text-body);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.btn-back:active {
+  background-color: var(--surface-raised);
+  color: var(--text);
+  transform: scale(0.98);
+}
+
+.btn-back:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.duel-question {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.countdown--gold {
+  color: var(--gold);
+}
+
+.duel-status-line {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.free-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  text-align: center;
+}
+
+/* Versus composition: stacked on mobile, two panels plus VS when wide */
+.versus {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.versus-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  text-align: center;
+  transition: opacity var(--transition-normal);
+}
+
+.versus-panel--empty {
+  border-style: dashed;
+}
+
+.versus-panel--winner {
+  border-color: var(--gold);
+  box-shadow: 0 0 24px var(--money-glow);
+}
+
+.versus-panel--loser {
+  opacity: 0.6;
+}
+
+.versus-role {
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.versus-wallet {
+  color: var(--text-muted);
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.versus-waiting {
+  color: var(--text-muted);
+  font-size: var(--text-body);
+}
+
+.versus-side {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.versus-marker {
+  justify-self: center;
+  align-self: center;
+  font-size: var(--text-hero);
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.winner-tag {
+  color: var(--gold);
+  font-weight: 800;
+  font-size: var(--text-body);
+}
+
+@media (min-width: 768px) {
+  .versus {
+    grid-template-columns: 1fr auto 1fr;
+    align-items: stretch;
+  }
+}
+
+/* Side slots in the join state: creator side disabled, opposite active */
+.side-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  border-radius: var(--radius-button);
+  font-size: 18px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+}
+
+.side-slot--disabled {
+  opacity: 0.45;
+}
+
+/* Share box and actions */
+.share-label {
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.share-box {
+  padding: 12px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+}
+
+.share-url {
+  display: block;
+  color: var(--text);
+  font-size: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+.share-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.share-actions .btn-primary {
+  flex: 1;
+}
+
+/* Create duel sheet extras */
+.sheet-question {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.sheet-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  text-align: center;
+}

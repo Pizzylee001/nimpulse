@@ -1,12 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
 import ActionCard from './components/ActionCard.vue'
+import CreateDuelSheet from './components/CreateDuelSheet.vue'
+import DuelView from './components/DuelView.vue'
 import PulseMark from './components/PulseMark.vue'
 import QuestionCard from './components/QuestionCard.vue'
 import RecentCard from './components/RecentCard.vue'
 import WalletSheet from './components/WalletSheet.vue'
 import { TESTNET_RECIPIENT } from './config'
-import { getToday, postPick, type Side, type TodayResponse } from './lib/api'
+import {
+  createDuel,
+  getDuel,
+  getToday,
+  joinDuel,
+  postPick,
+  type DuelData,
+  type Side,
+  type TodayResponse,
+} from './lib/api'
+import { createMemoBase } from './lib/nonce'
 import {
   ACTION_TIMEOUT_MS,
   describeWalletError,
@@ -77,6 +89,63 @@ const apiLoading = ref(true)
 const apiError = ref<string | null>(null)
 const pickFlow = reactive({ loading: false, side: null as Side | null, error: null as string | null })
 
+// Duel link routing: ?duel=<id> swaps the home content for the duel view.
+const duelParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('duel') : null
+const initialDuelId = duelParam && /^\d+$/.test(duelParam) ? Number(duelParam) : null
+const activeDuelId = ref<number | null>(initialDuelId)
+const duelData = ref<DuelData | null>(null)
+const duelLoading = ref(initialDuelId !== null)
+const duelError = ref<string | null>(null)
+const duelFlow = reactive({ joinLoading: false, joinError: null as string | null })
+const createSheetOpen = ref(false)
+const createFlow = reactive({ loading: false, error: null as string | null, result: null as DuelData | null })
+
+const duelActive = computed(() => activeDuelId.value !== null)
+
+/** Sign a message through Nimiq Pay with the shared timeout and unwrap. */
+async function signMessage(message: string): Promise<{ publicKey: string, signature: string }> {
+  const nimiq = provider.value
+  if (!nimiq) throw new Error('Nimiq Pay is not available.')
+  const raw = await withTimeout(
+    nimiq.sign(message),
+    ACTION_TIMEOUT_MS,
+    'Nimiq Pay did not respond in time. Try again.',
+  )
+  const signed = unwrapProviderResult<unknown>(raw)
+  if (typeof signed !== 'object' || signed === null) {
+    throw new Error('Unexpected sign response from Nimiq Pay.')
+  }
+  const payload = signed as { publicKey?: unknown, signature?: unknown }
+  if (typeof payload.publicKey !== 'string' || typeof payload.signature !== 'string') {
+    throw new Error('Unexpected sign response from Nimiq Pay.')
+  }
+  return { publicKey: payload.publicKey, signature: payload.signature }
+}
+
+async function fetchDuel() {
+  const id = activeDuelId.value
+  if (id === null) return
+  duelLoading.value = true
+  duelError.value = null
+  try {
+    duelData.value = await getDuel(id, connectState.address)
+  }
+  catch (error) {
+    duelError.value = error instanceof Error ? error.message : 'Could not load the duel.'
+  }
+  finally {
+    duelLoading.value = false
+  }
+}
+
+function backToToday() {
+  activeDuelId.value = null
+  duelData.value = null
+  duelError.value = null
+  window.history.replaceState({}, '', window.location.pathname)
+  void fetchToday()
+}
+
 function persist() {
   saveFoundationSnapshot({
     boots,
@@ -136,10 +205,16 @@ async function fetchToday() {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | undefined
+let duelPollTimer: ReturnType<typeof setInterval> | undefined
 
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
-    void fetchToday()
+    if (activeDuelId.value !== null) {
+      void fetchDuel()
+    }
+    else {
+      void fetchToday()
+    }
   }
 }
 
@@ -150,6 +225,15 @@ onMounted(async () => {
   pollTimer = setInterval(() => {
     void fetchToday()
   }, 60_000)
+  if (initialDuelId !== null) {
+    void fetchDuel()
+  }
+  duelPollTimer = setInterval(() => {
+    if (activeDuelId.value !== null
+      && (duelData.value?.status === 'open' || duelData.value?.status === 'locked')) {
+      void fetchDuel()
+    }
+  }, 30_000)
   document.addEventListener('visibilitychange', handleVisibilityChange)
 
   try {
@@ -174,11 +258,15 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
+  if (duelPollTimer) clearInterval(duelPollTimer)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 watch(connectDone, () => {
   void fetchToday()
+  if (activeDuelId.value !== null) {
+    void fetchDuel()
+  }
 })
 
 async function connectWallet() {
@@ -230,21 +318,7 @@ async function submitPick(side: Side) {
   try {
     // Canonical message, byte for byte what the server rebuilds.
     const message = `NimPulse pick: ${question.id} ${side} ${wallet} ${question.resolvesAt}`
-    const raw = await withTimeout(
-      nimiq.sign(message),
-      ACTION_TIMEOUT_MS,
-      'Nimiq Pay did not respond in time. Try again.',
-    )
-    const signed = unwrapProviderResult<unknown>(raw)
-    if (typeof signed !== 'object' || signed === null) {
-      throw new Error('Unexpected sign response from Nimiq Pay.')
-    }
-    const payload = signed as { publicKey?: unknown, signature?: unknown }
-    const publicKey = payload.publicKey
-    const signature = payload.signature
-    if (typeof publicKey !== 'string' || typeof signature !== 'string') {
-      throw new Error('Unexpected sign response from Nimiq Pay.')
-    }
+    const { publicKey, signature } = await signMessage(message)
     await postPick({
       questionId: question.id,
       side,
@@ -261,6 +335,71 @@ async function submitPick(side: Side) {
   finally {
     pickFlow.loading = false
     pickFlow.side = null
+  }
+}
+
+async function handleCreateDuel() {
+  const question = todayData.value?.today
+  if (!question || createFlow.loading) return
+  const side = question.myPick?.side
+  const wallet = connectState.address
+  if (!side || !wallet) return
+
+  createFlow.loading = true
+  createFlow.error = null
+  try {
+    const memoBase = createMemoBase()
+    // Canonical message, byte for byte what the server rebuilds.
+    const message = `NimPulse duel create: ${question.id} ${side} ${wallet} ${memoBase} ${question.resolvesAt}`
+    const { publicKey, signature } = await signMessage(message)
+    createFlow.result = await createDuel({
+      questionId: question.id,
+      side,
+      wallet,
+      memoBase,
+      publicKey,
+      signature,
+    })
+  }
+  catch (error) {
+    createFlow.error = describeWalletError(error)
+  }
+  finally {
+    createFlow.loading = false
+  }
+}
+
+function closeCreateSheet() {
+  createSheetOpen.value = false
+  createFlow.result = null
+  createFlow.error = null
+}
+
+async function handleJoinDuel(side: Side) {
+  const duel = duelData.value
+  if (!duel || duelFlow.joinLoading) return
+
+  if (!connectDone.value) {
+    await connectWallet()
+    if (!connectDone.value) return
+  }
+  const wallet = connectState.address
+  if (!wallet) return
+
+  duelFlow.joinLoading = true
+  duelFlow.joinError = null
+  try {
+    // Canonical message, byte for byte what the server rebuilds.
+    const message = `NimPulse duel join: ${duel.id} ${duel.question.id} ${side} ${wallet} ${duel.question.resolvesAt}`
+    const { publicKey, signature } = await signMessage(message)
+    await joinDuel(duel.id, { side, wallet, publicKey, signature })
+    await fetchDuel()
+  }
+  catch (error) {
+    duelFlow.joinError = describeWalletError(error)
+  }
+  finally {
+    duelFlow.joinLoading = false
   }
 }
 
@@ -464,7 +603,7 @@ async function copyHash() {
         </p>
       </div>
 
-      <main class="card-stack">
+      <main v-if="!duelActive" class="card-stack">
         <QuestionCard
           :question="todayData?.today ?? null"
           :provider-ready="providerState === 'ready'"
@@ -474,8 +613,10 @@ async function copyHash() {
           :pick-error="pickFlow.error"
           :api-error="apiError"
           :api-loading="apiLoading"
+          :challenge-loading="createFlow.loading"
           @pick="submitPick"
           @connect="connectWallet"
+          @challenge="createSheetOpen = true"
         />
 
         <RecentCard :recent="todayData?.recent ?? null" :me="todayData?.me ?? null" />
@@ -556,7 +697,32 @@ async function copyHash() {
           </div>
         </details>
       </main>
+
+      <DuelView
+        v-else
+        :duel="duelData"
+        :loading="duelLoading"
+        :error="duelError"
+        :provider-ready="providerState === 'ready'"
+        :connected="connectDone"
+        :join-loading="duelFlow.joinLoading"
+        :join-error="duelFlow.joinError"
+        @back="backToToday"
+        @connect="connectWallet"
+        @join="handleJoinDuel"
+      />
     </div>
+
+    <CreateDuelSheet
+      v-if="createSheetOpen && todayData?.today?.myPick"
+      :question="todayData.today"
+      :side="todayData.today.myPick.side"
+      :loading="createFlow.loading"
+      :error="createFlow.error"
+      :result="createFlow.result"
+      @create="handleCreateDuel"
+      @close="closeCreateSheet"
+    />
 
     <WalletSheet
       v-if="walletSheetOpen && connectState.address"

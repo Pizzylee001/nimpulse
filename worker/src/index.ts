@@ -9,6 +9,15 @@ import {
   lastResolutionTime,
 } from './questions'
 import { resolveDueQuestions } from './resolve'
+import {
+  buildDuelCreateMessage,
+  buildDuelJoinMessage,
+  buildDuelState,
+  findDuelByMemoBase,
+  findDuelById,
+  findPickSide,
+  MEMO_BASE_PATTERN,
+} from './duels'
 import type { Env, PlayerRow, Side } from './types'
 
 export default {
@@ -63,6 +72,20 @@ async function routeRequest(request: Request, env: Env, url: URL): Promise<Respo
 
   if (request.method === 'GET' && url.pathname === '/api/leaderboard') {
     return handleLeaderboard(env)
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/duels') {
+    return handleCreateDuel(request, env)
+  }
+
+  const duelMatch = url.pathname.match(/^\/api\/duels\/(\d+)$/)
+  if (request.method === 'GET' && duelMatch) {
+    return handleGetDuel(env, Number(duelMatch[1]), url)
+  }
+
+  const duelJoinMatch = url.pathname.match(/^\/api\/duels\/(\d+)\/join$/)
+  if (request.method === 'POST' && duelJoinMatch) {
+    return handleJoinDuel(request, env, Number(duelJoinMatch[1]))
   }
 
   return json({ error: 'Route not found.' }, 404)
@@ -231,6 +254,220 @@ async function handleLeaderboard(env: Env): Promise<Response> {
       settledLosses: player.settled_losses,
     })),
   })
+}
+
+async function handleGetDuel(env: Env, duelId: number, url: URL): Promise<Response> {
+  if (!Number.isInteger(duelId) || duelId < 1) {
+    return json({ error: 'A valid duel id is required.' }, 400)
+  }
+  const duel = await findDuelById(env, duelId)
+  if (!duel) {
+    return json({ error: 'Duel not found.' }, 404)
+  }
+  const question = await findQuestionById(env, duel.question_id)
+  if (!question) {
+    return json({ error: 'Duel question not found.' }, 404)
+  }
+  const wallet = normalizeWalletAddress(url.searchParams.get('wallet'))
+  return json(buildDuelState(duel, question, wallet, new Date()))
+}
+
+async function handleCreateDuel(request: Request, env: Env): Promise<Response> {
+  const body = await readJson(request)
+
+  const questionId = body.questionId
+  const side = body.side
+  const walletRaw = body.wallet
+  const memoBase = body.memoBase
+  const publicKey = body.publicKey
+  const signature = body.signature
+
+  if (!Number.isInteger(questionId) || (questionId as number) < 1) {
+    return json({ error: 'A valid question id is required.' }, 400)
+  }
+  if (side !== 'yes' && side !== 'no') {
+    return json({ error: 'Side must be yes or no.' }, 400)
+  }
+  if (typeof walletRaw !== 'string') {
+    return json({ error: 'A valid wallet address is required.' }, 400)
+  }
+  if (typeof memoBase !== 'string' || !MEMO_BASE_PATTERN.test(memoBase)) {
+    return json({ error: 'A valid memo base is required.' }, 400)
+  }
+  if (typeof publicKey !== 'string' || typeof signature !== 'string') {
+    return json({ error: 'Public key and signature are required.' }, 400)
+  }
+
+  const wallet = normalizeWalletAddress(walletRaw)
+  if (!wallet) {
+    return json({ error: 'A valid Nimiq wallet address is required.' }, 400)
+  }
+
+  const question = await findQuestionById(env, questionId as number)
+  if (!question) {
+    return json({ error: 'Question not found.' }, 404)
+  }
+
+  const now = new Date()
+  if (now.toISOString() < question.opens_at) {
+    return json({ error: 'Question is not open yet.' }, 400)
+  }
+  if (now.toISOString() >= question.resolves_at) {
+    return json({ error: 'Question is closed for duels.' }, 400)
+  }
+
+  // A duel is fought with the creator's locked daily side.
+  const pickedSide = await findPickSide(env, question.id, wallet)
+  if (pickedSide === null) {
+    return json({ error: 'Pick your daily side before creating a duel.' }, 400)
+  }
+  if (pickedSide !== side) {
+    return json({ error: 'You can only duel with your picked side.' }, 400)
+  }
+
+  // The canonical message is rebuilt from stored values only.
+  const message = buildDuelCreateMessage(question.id, side as Side, wallet, memoBase, question.resolves_at)
+  const proof = await verifyWalletSignature({ wallet, publicKey, signature, message })
+  if (!proof.ok || !proof.walletAddress) {
+    return json({ error: proof.error }, 401)
+  }
+
+  // Idempotent resubmission: the same memo base returns the same duel.
+  const existing = await findDuelByMemoBase(env, memoBase)
+  if (existing) {
+    if (existing.creator_wallet !== proof.walletAddress) {
+      return json({ error: 'This memo base is already used.' }, 409)
+    }
+    const existingQuestion = await findQuestionById(env, existing.question_id)
+    if (existingQuestion) {
+      return json({ ok: true, duel: buildDuelState(existing, existingQuestion, proof.walletAddress, now) })
+    }
+  }
+
+  const createdAt = now.toISOString()
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO duels (question_id, creator_wallet, creator_side, stake_luna, status,
+                            opponent_wallet, opponent_side, winner_wallet, memo_base, created_at, resolved_at)
+         VALUES (?, ?, ?, 0, 'open', NULL, NULL, NULL, ?, ?, NULL)`,
+      ).bind(question.id, proof.walletAddress, side, memoBase, createdAt),
+      env.DB.prepare(
+        `INSERT INTO duel_proofs (duel_id, wallet_address, role, side, public_key, signature, created_at)
+         SELECT id, ?, 'creator', ?, ?, ?, ?
+         FROM duels WHERE memo_base = ?`,
+      ).bind(proof.walletAddress, side, publicKey.toLowerCase(), signature.toLowerCase(), createdAt, memoBase),
+    ])
+  }
+  catch (error) {
+    const messageText = error instanceof Error ? error.message : String(error)
+    if (messageText.includes('UNIQUE constraint failed')) {
+      return json({ error: 'This memo base is already used.' }, 409)
+    }
+    throw error
+  }
+
+  const duel = await findDuelByMemoBase(env, memoBase)
+  if (!duel) {
+    throw new Error('Duel was not persisted.')
+  }
+  return json({ ok: true, duel: buildDuelState(duel, question, proof.walletAddress, now) }, 201)
+}
+
+async function handleJoinDuel(request: Request, env: Env, duelId: number): Promise<Response> {
+  if (!Number.isInteger(duelId) || duelId < 1) {
+    return json({ error: 'A valid duel id is required.' }, 400)
+  }
+
+  const body = await readJson(request)
+  const side = body.side
+  const walletRaw = body.wallet
+  const publicKey = body.publicKey
+  const signature = body.signature
+
+  if (side !== 'yes' && side !== 'no') {
+    return json({ error: 'Side must be yes or no.' }, 400)
+  }
+  if (typeof walletRaw !== 'string') {
+    return json({ error: 'A valid wallet address is required.' }, 400)
+  }
+  if (typeof publicKey !== 'string' || typeof signature !== 'string') {
+    return json({ error: 'Public key and signature are required.' }, 400)
+  }
+
+  const wallet = normalizeWalletAddress(walletRaw)
+  if (!wallet) {
+    return json({ error: 'A valid Nimiq wallet address is required.' }, 400)
+  }
+
+  const duel = await findDuelById(env, duelId)
+  if (!duel) {
+    return json({ error: 'Duel not found.' }, 404)
+  }
+
+  const question = await findQuestionById(env, duel.question_id)
+  if (!question) {
+    return json({ error: 'Duel question not found.' }, 404)
+  }
+
+  const now = new Date()
+  if (duel.opponent_wallet !== null) {
+    return json({ error: 'This duel already has an opponent.' }, 409)
+  }
+  if (question.outcome !== null || now.toISOString() >= question.resolves_at) {
+    return json({ error: 'This duel is closed for joins.' }, 400)
+  }
+  if (duel.creator_wallet === wallet) {
+    return json({ error: 'You cannot join your own duel.' }, 400)
+  }
+
+  const opposite: Side = duel.creator_side === 'yes' ? 'no' : 'yes'
+  if (side !== opposite) {
+    return json({ error: 'You must take the opposite side.' }, 400)
+  }
+
+  // The canonical message is rebuilt from stored values only.
+  const message = buildDuelJoinMessage(duel.id, question.id, side, wallet, question.resolves_at)
+  const proof = await verifyWalletSignature({ wallet, publicKey, signature, message })
+  if (!proof.ok || !proof.walletAddress) {
+    return json({ error: proof.error }, 401)
+  }
+
+  const createdAt = now.toISOString()
+  let changes = 0
+  try {
+    // Both statements are guarded by the same condition inside one atomic
+    // batch, so a duplicate or racing join cannot partially modify the duel.
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO duel_proofs (duel_id, wallet_address, role, side, public_key, signature, created_at)
+         SELECT ?1, ?2, 'opponent', ?3, ?4, ?5, ?6
+         WHERE EXISTS (SELECT 1 FROM duels WHERE id = ?1 AND status = 'open' AND opponent_wallet IS NULL)`,
+      ).bind(duel.id, proof.walletAddress, side, publicKey.toLowerCase(), signature.toLowerCase(), createdAt),
+      env.DB.prepare(
+        `UPDATE duels SET opponent_wallet = ?, opponent_side = ?, status = 'locked'
+         WHERE id = ? AND status = 'open' AND opponent_wallet IS NULL`,
+      ).bind(proof.walletAddress, side, duel.id),
+    ])
+    changes = Number(results[1].meta.changes ?? 0)
+  }
+  catch (error) {
+    const messageText = error instanceof Error ? error.message : String(error)
+    if (messageText.includes('UNIQUE constraint failed')) {
+      return json({ error: 'You already joined this duel.' }, 409)
+    }
+    throw error
+  }
+
+  if (changes !== 1) {
+    return json({ error: 'This duel already has an opponent.' }, 409)
+  }
+
+  const updated = await findDuelById(env, duelId)
+  if (!updated) {
+    throw new Error('Duel was not persisted.')
+  }
+  return json({ ok: true, duel: buildDuelState(updated, question, proof.walletAddress, now) }, 201)
 }
 
 async function findPick(env: Env, questionId: number, wallet: string): Promise<{ side: Side } | null> {

@@ -114,10 +114,33 @@ export async function resolveDueQuestions(env: Env, now: Date): Promise<{ resolv
       .run()
 
     await applyResolutionToPlayers(env, question.id, outcome)
+    await applyResolutionToDuels(env, question.id, outcome, now)
     resolved++
   }
 
   return { resolved, retryFlagged }
+}
+
+/**
+ * Duel resolution from the same real outcome:
+ * - open duels with no opponent become expired
+ * - locked duels become resolved with winner_wallet set
+ * Idempotent: terminal statuses never match the WHERE clauses again.
+ * No NIM moves, no settled or paid status, no payout records.
+ */
+async function applyResolutionToDuels(env: Env, questionId: number, outcome: Side, now: Date): Promise<void> {
+  const resolvedAt = now.toISOString()
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE duels SET status = 'expired', resolved_at = ?
+       WHERE question_id = ? AND status = 'open'`,
+    ).bind(resolvedAt, questionId),
+    env.DB.prepare(
+      `UPDATE duels SET status = 'resolved', resolved_at = ?,
+         winner_wallet = CASE WHEN creator_side = ? THEN creator_wallet ELSE opponent_wallet END
+       WHERE question_id = ? AND status = 'locked'`,
+    ).bind(resolvedAt, outcome, questionId),
+  ])
 }
 
 /**

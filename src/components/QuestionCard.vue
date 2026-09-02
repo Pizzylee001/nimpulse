@@ -11,9 +11,10 @@ const props = defineProps<{
   pickError: string | null
   apiError: string | null
   apiLoading: boolean
+  challengeLoading: boolean
 }>()
 
-const emit = defineEmits<{ pick: [side: 'yes' | 'no'], connect: [] }>()
+const emit = defineEmits<{ pick: [side: 'yes' | 'no'], connect: [], challenge: [] }>()
 
 const nowMs = ref(Date.now())
 let timer: ReturnType<typeof setInterval> | undefined
@@ -76,6 +77,15 @@ const lockedSide = computed(() => props.question?.myPick?.side ?? null)
           </strong>
         </p>
         <p class="locked-sub">Waiting for resolution</p>
+        <button
+          class="btn btn-primary btn-challenge"
+          type="button"
+          :disabled="!providerReady || challengeLoading"
+          @click="emit('challenge')"
+        >
+          <span v-if="challengeLoading" class="spinner" aria-hidden="true" />
+          Challenge with {{ lockedSide === 'yes' ? 'YES' : 'NO' }}
+        </button>
       </div>
 
       <div v-else-if="!expired" class="choice-row">
