@@ -615,3 +615,120 @@ body {
 .foundation[open] summary {
   margin-bottom: 12px;
 }
+
+/* Wallet pill as a tappable button */
+button.wallet-pill {
+  border: 1px solid var(--border);
+  background-color: transparent;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+button.wallet-pill:active {
+  background-color: var(--surface-raised);
+  transform: scale(0.98);
+}
+
+button.wallet-pill:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Bottom sheet for the wallet session */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background-color: var(--scrim);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: var(--content-max-width);
+  padding:
+    8px 20px
+    calc(24px + env(safe-area-inset-bottom))
+    20px;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  backdrop-filter: blur(var(--overlay-blur));
+  -webkit-backdrop-filter: blur(var(--overlay-blur));
+  animation: sheet-up var(--transition-normal) ease-out;
+}
+
+.sheet-handle {
+  align-self: center;
+  width: 40px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background-color: var(--border);
+  margin-bottom: 4px;
+}
+
+.sheet-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sheet-brand .pulse-mark {
+  width: 18px;
+}
+
+.sheet-title {
+  font-size: var(--text-title);
+  font-weight: 700;
+}
+
+.sheet-address {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+}
+
+.sheet-address-value {
+  font-size: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+.sheet .btn-ghost {
+  width: 100%;
+}
+
+.sheet-helper {
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  text-align: center;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}

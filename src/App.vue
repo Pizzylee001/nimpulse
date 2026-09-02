@@ -4,6 +4,7 @@ import ActionCard from './components/ActionCard.vue'
 import PulseMark from './components/PulseMark.vue'
 import QuestionCard from './components/QuestionCard.vue'
 import RecentCard from './components/RecentCard.vue'
+import WalletSheet from './components/WalletSheet.vue'
 import { TESTNET_RECIPIENT } from './config'
 import { getToday, postPick, type Side, type TodayResponse } from './lib/api'
 import {
@@ -69,6 +70,7 @@ const sendState = reactive<CardState & { hash: string | null }>({
 })
 
 const copied = ref(false)
+const walletSheetOpen = ref(false)
 
 const todayData = ref<TodayResponse | null>(null)
 const apiLoading = ref(true)
@@ -373,6 +375,7 @@ function disconnectSession() {
   pickFlow.error = null
 
   copied.value = false
+  walletSheetOpen.value = false
   saveFoundationSnapshot({
     boots,
     address: null,
@@ -431,10 +434,16 @@ async function copyHash() {
         <div class="hero-brand">
           <PulseMark variant="mark" />
           <h1 class="wordmark">NimPulse</h1>
-          <span v-if="connectState.address" class="wallet-pill mono">
+          <button
+            v-if="connectState.address"
+            class="wallet-pill mono"
+            type="button"
+            aria-haspopup="dialog"
+            @click="walletSheetOpen = true"
+          >
             <PulseMark variant="mark" />
             {{ truncateMiddle(connectState.address) }}
-          </span>
+          </button>
         </div>
         <p class="tagline">Call the market. Win the pot.</p>
         <p class="hero-sub">1v1 market prediction duels inside Nimiq Pay.</p>
@@ -548,5 +557,12 @@ async function copyHash() {
         </details>
       </main>
     </div>
+
+    <WalletSheet
+      v-if="walletSheetOpen && connectState.address"
+      :address="connectState.address"
+      @close="walletSheetOpen = false"
+      @disconnect="disconnectSession"
+    />
   </div>
 </template>

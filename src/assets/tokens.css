@@ -25,6 +25,7 @@
 
   /* Derived colors, kept here so components stay token-only */
   --primary-glow: rgba(245, 197, 66, 0.14);
+  --scrim: rgba(13, 12, 10, 0.6);
   --spinner-track: rgba(245, 241, 232, 0.35);
   --grid-line: rgba(245, 241, 232, 0.03);
 
