@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
 import ActionCard from './components/ActionCard.vue'
+import ActiveDuels from './components/ActiveDuels.vue'
 import CreateDuelSheet from './components/CreateDuelSheet.vue'
 import DuelView from './components/DuelView.vue'
 import PulseMark from './components/PulseMark.vue'
+import PredictionSheet from './components/PredictionSheet.vue'
 import QuestionCard from './components/QuestionCard.vue'
 import RecentCard from './components/RecentCard.vue'
 import WalletSheet from './components/WalletSheet.vue'
@@ -11,10 +13,12 @@ import { TESTNET_RECIPIENT } from './config'
 import {
   createDuel,
   getDuel,
+  getMyDuels,
   getToday,
   joinDuel,
   postPick,
   type DuelData,
+  type MyDuelSummary,
   type Side,
   type TodayResponse,
 } from './lib/api'
@@ -100,6 +104,57 @@ const duelFlow = reactive({ joinLoading: false, joinError: null as string | null
 const createSheetOpen = ref(false)
 const createFlow = reactive({ loading: false, error: null as string | null, result: null as DuelData | null })
 
+// Wallet activity: participant duels and the prediction detail sheet.
+const myDuels = ref<MyDuelSummary[]>([])
+const myDuelsLoading = ref(false)
+const predictionSheetId = ref<number | null>(null)
+
+const hasActiveDuels = computed(() =>
+  myDuels.value.some(duel => duel.status === 'open' || duel.status === 'locked'))
+
+async function fetchMyDuels() {
+  const wallet = connectState.address
+  if (!wallet) {
+    myDuels.value = []
+    return
+  }
+  try {
+    myDuels.value = await getMyDuels(wallet)
+  }
+  catch (error) {
+    console.info('[nimpulse] duel list fetch failed:', error)
+  }
+}
+
+function openDuel(duelId: number) {
+  activeDuelId.value = duelId
+  duelData.value = null
+  duelError.value = null
+  window.history.pushState({ duel: duelId }, '', `/?duel=${duelId}`)
+  void fetchDuel()
+}
+
+function openPrediction(questionId: number) {
+  predictionSheetId.value = questionId
+}
+
+function openDuelFromPopstate() {
+  const params = new URLSearchParams(window.location.search)
+  const duel = params.get('duel')
+  if (duel && /^\d+$/.test(duel)) {
+    activeDuelId.value = Number(duel)
+    duelData.value = null
+    void fetchDuel()
+  }
+  else {
+    activeDuelId.value = null
+    duelData.value = null
+    duelError.value = null
+    void fetchToday()
+    void fetchMyDuels()
+  }
+}
+
 const duelActive = computed(() => activeDuelId.value !== null)
 
 /** Sign a message through Nimiq Pay with the shared timeout and unwrap. */
@@ -142,8 +197,9 @@ function backToToday() {
   activeDuelId.value = null
   duelData.value = null
   duelError.value = null
-  window.history.replaceState({}, '', window.location.pathname)
+  window.history.pushState({}, '', window.location.pathname)
   void fetchToday()
+  void fetchMyDuels()
 }
 
 function persist() {
@@ -214,8 +270,13 @@ function handleVisibilityChange() {
     }
     else {
       void fetchToday()
+      void fetchMyDuels()
     }
   }
+}
+
+function handlePopState() {
+  openDuelFromPopstate()
 }
 
 onMounted(async () => {
@@ -233,8 +294,14 @@ onMounted(async () => {
       && (duelData.value?.status === 'open' || duelData.value?.status === 'locked')) {
       void fetchDuel()
     }
+    // Slow home polling for the activity list: only while active duels
+    // exist, otherwise nothing is requested.
+    else if (activeDuelId.value === null && hasActiveDuels.value) {
+      void fetchMyDuels()
+    }
   }, 30_000)
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('popstate', handlePopState)
 
   try {
     provider.value = await initProvider()
@@ -260,12 +327,22 @@ onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
   if (duelPollTimer) clearInterval(duelPollTimer)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('popstate', handlePopState)
 })
 
 watch(connectDone, () => {
   void fetchToday()
   if (activeDuelId.value !== null) {
     void fetchDuel()
+  }
+  if (connectDone.value) {
+    myDuelsLoading.value = true
+    void fetchMyDuels().finally(() => {
+      myDuelsLoading.value = false
+    })
+  }
+  else {
+    myDuels.value = []
   }
 })
 
@@ -360,6 +437,7 @@ async function handleCreateDuel() {
       publicKey,
       signature,
     })
+    await fetchMyDuels()
   }
   catch (error) {
     createFlow.error = describeWalletError(error)
@@ -394,6 +472,7 @@ async function handleJoinDuel(side: Side) {
     const { publicKey, signature } = await signMessage(message)
     await joinDuel(duel.id, { side, wallet, publicKey, signature })
     await fetchDuel()
+    await fetchMyDuels()
   }
   catch (error) {
     duelFlow.joinError = describeWalletError(error)
@@ -619,7 +698,18 @@ async function copyHash() {
           @challenge="createSheetOpen = true"
         />
 
-        <RecentCard :recent="todayData?.recent ?? null" :me="todayData?.me ?? null" />
+        <ActiveDuels
+          v-if="connectDone"
+          :duels="myDuels"
+          :loading="myDuelsLoading"
+          @open="openDuel"
+        />
+
+        <RecentCard
+          :recent="todayData?.recent ?? null"
+          :me="todayData?.me ?? null"
+          @open="openPrediction"
+        />
 
         <details class="foundation">
           <summary>Foundation tests</summary>
@@ -712,6 +802,13 @@ async function copyHash() {
         @join="handleJoinDuel"
       />
     </div>
+
+    <PredictionSheet
+      v-if="predictionSheetId !== null"
+      :prediction-id="predictionSheetId"
+      :wallet="connectState.address"
+      @close="predictionSheetId = null"
+    />
 
     <CreateDuelSheet
       v-if="createSheetOpen && todayData?.today?.myPick"

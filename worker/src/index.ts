@@ -16,8 +16,10 @@ import {
   findDuelByMemoBase,
   findDuelById,
   findPickSide,
+  listDuelsForWallet,
   MEMO_BASE_PATTERN,
 } from './duels'
+import { findPlayer, findPick } from './projections'
 import type { Env, PlayerRow, Side } from './types'
 
 export default {
@@ -74,6 +76,10 @@ async function routeRequest(request: Request, env: Env, url: URL, ctx: Execution
     return handleLeaderboard(env)
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/duels') {
+    return handleListDuels(env, url, ctx)
+  }
+
   if (request.method === 'POST' && url.pathname === '/api/duels') {
     return handleCreateDuel(request, env)
   }
@@ -88,7 +94,70 @@ async function routeRequest(request: Request, env: Env, url: URL, ctx: Execution
     return handleJoinDuel(request, env, Number(duelJoinMatch[1]))
   }
 
+  const predictionMatch = url.pathname.match(/^\/api\/predictions\/(\d+)$/)
+  if (request.method === 'GET' && predictionMatch) {
+    return handlePrediction(env, Number(predictionMatch[1]), url, ctx)
+  }
+
   return json({ error: 'Route not found.' }, 404)
+}
+
+async function handleListDuels(env: Env, url: URL, ctx: ExecutionContext): Promise<Response> {
+  const wallet = normalizeWalletAddress(url.searchParams.get('wallet'))
+  if (!wallet) {
+    return json({ error: 'A valid wallet address is required.' }, 400)
+  }
+  const now = new Date()
+  // Same self-healing sweep as the single-duel read, so stale statuses
+  // are repaired from real price data before listing.
+  await maybeSweepResolution(env, ctx, now)
+  const duels = await listDuelsForWallet(env, wallet, now)
+  return json({ duels })
+}
+
+async function handlePrediction(env: Env, predictionId: number, url: URL, ctx: ExecutionContext): Promise<Response> {
+  if (!Number.isInteger(predictionId) || predictionId < 1) {
+    return json({ error: 'A valid prediction id is required.' }, 400)
+  }
+  const now = new Date()
+  await maybeSweepResolution(env, ctx, now)
+  const question = await findQuestionById(env, predictionId)
+  if (!question) {
+    return json({ error: 'Prediction not found.' }, 404)
+  }
+
+  const wallet = normalizeWalletAddress(url.searchParams.get('wallet'))
+  const [pick, player] = wallet
+    ? await Promise.all([
+        findPick(env, question.id, wallet),
+        findPlayer(env, wallet),
+      ])
+    : [null, null]
+
+  return json({
+    prediction: {
+      id: question.id,
+      asset: question.asset,
+      question: question.question,
+      opensAt: question.opens_at,
+      resolvesAt: question.resolves_at,
+      outcome: question.outcome,
+      openPrice: question.open_price,
+      closePrice: question.close_price,
+      priceSource: question.price_source,
+      myPick: pick ? pick.side : null,
+      correct: pick && question.outcome !== null ? pick.side === question.outcome : null,
+      secondsRemaining: Math.max(0, Math.floor((new Date(question.resolves_at).getTime() - now.getTime()) / 1000)),
+    },
+    me: player
+      ? {
+          currentStreak: player.current_streak,
+          bestStreak: player.best_streak,
+          totalCorrect: player.total_correct,
+          totalPicks: player.total_picks,
+        }
+      : null,
+  })
 }
 
 async function handleHealth(env: Env): Promise<Response> {
@@ -493,18 +562,4 @@ async function handleJoinDuel(request: Request, env: Env, duelId: number): Promi
     throw new Error('Duel was not persisted.')
   }
   return json({ ok: true, duel: buildDuelState(updated, question, proof.walletAddress, now) }, 201)
-}
-
-async function findPick(env: Env, questionId: number, wallet: string): Promise<{ side: Side } | null> {
-  return await env.DB.prepare(
-    'SELECT side FROM picks WHERE question_id = ? AND wallet_address = ?',
-  )
-    .bind(questionId, wallet)
-    .first<{ side: Side }>()
-}
-
-async function findPlayer(env: Env, wallet: string): Promise<PlayerRow | null> {
-  return await env.DB.prepare('SELECT * FROM players WHERE wallet_address = ?')
-    .bind(wallet)
-    .first<PlayerRow>()
 }

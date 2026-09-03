@@ -7,6 +7,8 @@ const props = defineProps<{
   me: MeStats | null
 }>()
 
+const emit = defineEmits<{ open: [questionId: number] }>()
+
 const label = computed(() => {
   if (!props.recent) return ''
   const resolves = new Date(props.recent.resolvesAt)
@@ -27,7 +29,13 @@ function formatPrice(value: number | null): string {
 </script>
 
 <template>
-  <section v-if="recent" class="card card--compact recent-card">
+  <button
+    v-if="recent"
+    class="card card--compact recent-card"
+    type="button"
+    :aria-label="`Open resolved ${recent.asset} prediction`"
+    @click="emit('open', recent.id)"
+  >
     <div class="recent-top">
       <span class="card-eyebrow">{{ label }} &middot; {{ recent.asset }}</span>
       <span class="outcome" :class="recent.outcome === 'yes' ? 'side-yes' : 'side-no'">
@@ -49,5 +57,5 @@ function formatPrice(value: number | null): string {
       <template v-else>No pick</template>
       <span v-if="me" class="streak mono">&middot; Streak: {{ me.currentStreak }}</span>
     </p>
-  </section>
+  </button>
 </template>

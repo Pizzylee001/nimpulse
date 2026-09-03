@@ -1,3 +1,4 @@
+import { findQuestionById } from './questions'
 import type { DuelResponse, DuelRole, DuelRow, DuelStatus, Env, QuestionRow, Side } from './types'
 import { maskWalletAddress } from './verify'
 
@@ -16,6 +17,81 @@ export function buildDuelCreateMessage(questionId: number, side: Side, wallet: s
 
 export function buildDuelJoinMessage(duelId: number, questionId: number, side: Side, wallet: string, resolvesAt: string): string {
   return `NimPulse duel join: ${duelId} ${questionId} ${side} ${wallet} ${resolvesAt}`
+}
+
+/**
+ * Compact duel summary for the home activity list. Built from the same
+ * buildDuelState projection as the single-duel endpoint so status and
+ * winner rules can never diverge between the two read paths.
+ */
+export interface DuelSummary {
+  id: number
+  status: DuelStatus
+  role: 'creator' | 'opponent'
+  mySide: Side
+  opponent: { wallet: string, side: Side } | null
+  question: {
+    id: number
+    asset: string
+    question: string
+    resolvesAt: string
+    outcome: Side | null
+  }
+  winnerRole: 'creator' | 'opponent' | null
+  createdAt: string
+}
+
+const STATUS_ORDER: Record<DuelStatus, number> = {
+  locked: 0,
+  open: 1,
+  resolved: 2,
+  expired: 3,
+}
+
+/** Wallet-scoped duel list: participant duels only, wallets masked. */
+export async function listDuelsForWallet(env: Env, wallet: string, now: Date): Promise<DuelSummary[]> {
+  const result = await env.DB.prepare(
+    `SELECT * FROM duels
+     WHERE creator_wallet = ? OR opponent_wallet = ?
+     ORDER BY created_at DESC
+     LIMIT 60`,
+  )
+    .bind(wallet, wallet)
+    .all<DuelRow>()
+
+  const summaries: DuelSummary[] = []
+  for (const duel of result.results) {
+    const question = await findQuestionById(env, duel.question_id)
+    if (!question) continue
+    const state = buildDuelState(duel, question, wallet, now)
+    if (state.role === 'spectator') continue
+    summaries.push({
+      id: state.id,
+      status: state.status,
+      role: state.role as 'creator' | 'opponent',
+      mySide: state.mySide as Side,
+      opponent: state.opponent,
+      question: {
+        id: question.id,
+        asset: question.asset,
+        question: question.question,
+        resolvesAt: question.resolves_at,
+        outcome: question.outcome,
+      },
+      winnerRole: state.winnerRole,
+      createdAt: duel.created_at,
+    })
+  }
+
+  // Active first: locked, open, resolved, expired. Newest first within
+  // each status.
+  summaries.sort((a, b) => {
+    const statusRank = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+    if (statusRank !== 0) return statusRank
+    return b.createdAt.localeCompare(a.createdAt)
+  })
+
+  return summaries.slice(0, 20)
 }
 
 export async function findDuelById(env: Env, id: number): Promise<DuelRow | null> {

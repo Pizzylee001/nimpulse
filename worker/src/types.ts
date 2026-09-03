@@ -13,6 +13,7 @@ export interface QuestionRow {
   outcome: 'yes' | 'no' | null
   needs_retry: number
   resolved_at: string | null
+  price_source: string | null
 }
 
 export interface PickRow {

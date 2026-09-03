@@ -943,3 +943,182 @@ button.wallet-pill:focus-visible {
   font-size: var(--text-small);
   text-align: center;
 }
+
+/* Active duels list */
+.active-duels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.duel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.duel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  background-color: var(--surface);
+  color: var(--text);
+  font-family: var(--font-text);
+  font-size: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.duel-row:hover {
+  background-color: var(--surface-raised);
+}
+
+.duel-row:active {
+  transform: scale(0.98);
+}
+
+.duel-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.duel-row--locked,
+.duel-row--open {
+  border-color: var(--primary-glow);
+}
+
+.duel-row--resolved,
+.duel-row--expired {
+  opacity: 0.75;
+}
+
+.duel-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.duel-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.duel-row-status {
+  font-size: var(--text-small);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.duel-row--locked .duel-row-status {
+  color: var(--gold);
+}
+
+.duel-row--open .duel-row-status {
+  color: var(--text);
+}
+
+.duel-row--resolved .duel-row-status {
+  color: var(--yes);
+}
+
+.duel-row--expired .duel-row-status {
+  color: var(--text-muted);
+}
+
+.duel-row-asset {
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.duel-row-sides {
+  color: var(--text);
+}
+
+.duel-row-sides strong {
+  font-size: var(--text-body);
+}
+
+.duel-row-sub {
+  color: var(--text-muted);
+  font-size: var(--text-small);
+}
+
+.duel-row-action {
+  flex-shrink: 0;
+  color: var(--primary);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+/* Interactive recent prediction card */
+button.recent-card {
+  cursor: pointer;
+  font-family: var(--font-text);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+button.recent-card:hover {
+  background-color: var(--surface-raised);
+}
+
+button.recent-card:active {
+  transform: scale(0.98);
+}
+
+button.recent-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Prediction detail sheet */
+.detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.detail-row dt {
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.detail-row dd {
+  margin: 0;
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet .detail-list + .sheet-note {
+  margin-top: -4px;
+}
