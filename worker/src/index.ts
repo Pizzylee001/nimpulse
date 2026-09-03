@@ -21,10 +21,10 @@ import {
 import type { Env, PlayerRow, Side } from './types'
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
     try {
-      const response = await routeRequest(request, env, url)
+      const response = await routeRequest(request, env, url, ctx)
       return withCors(response, request)
     }
     catch (error) {
@@ -53,7 +53,7 @@ export default {
   },
 }
 
-async function routeRequest(request: Request, env: Env, url: URL): Promise<Response> {
+async function routeRequest(request: Request, env: Env, url: URL, ctx: ExecutionContext): Promise<Response> {
   if (request.method === 'OPTIONS') {
     return preflight(request)
   }
@@ -63,7 +63,7 @@ async function routeRequest(request: Request, env: Env, url: URL): Promise<Respo
   }
 
   if (request.method === 'GET' && url.pathname === '/api/today') {
-    return handleToday(env, url)
+    return handleToday(env, url, ctx)
   }
 
   if (request.method === 'POST' && url.pathname === '/api/pick') {
@@ -80,7 +80,7 @@ async function routeRequest(request: Request, env: Env, url: URL): Promise<Respo
 
   const duelMatch = url.pathname.match(/^\/api\/duels\/(\d+)$/)
   if (request.method === 'GET' && duelMatch) {
-    return handleGetDuel(env, Number(duelMatch[1]), url)
+    return handleGetDuel(env, Number(duelMatch[1]), url, ctx)
   }
 
   const duelJoinMatch = url.pathname.match(/^\/api\/duels\/(\d+)\/join$/)
@@ -105,8 +105,32 @@ async function handleHealth(env: Env): Promise<Response> {
   })
 }
 
-async function handleToday(env: Env, url: URL): Promise<Response> {
+/**
+ * Self-healing resolution fallback. The cron stays the primary resolver,
+ * but if a question is past its resolve time and still unresolved (for
+ * example a transient CoinGecko failure flagged needs_retry), a normal
+ * page load sweeps it in the background. Real CoinGecko prices only.
+ */
+async function maybeSweepResolution(env: Env, ctx: ExecutionContext, now: Date): Promise<void> {
+  const due = await env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM questions WHERE resolves_at <= ? AND outcome IS NULL',
+  )
+    .bind(now.toISOString())
+    .first<{ count: number }>()
+  if (Number(due?.count ?? 0) === 0) return
+  ctx.waitUntil(
+    resolveDueQuestions(env, now).catch(error => {
+      console.error(JSON.stringify({
+        event: 'sweep_resolution_error',
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }),
+  )
+}
+
+async function handleToday(env: Env, url: URL, ctx: ExecutionContext): Promise<Response> {
   const now = new Date()
+  await maybeSweepResolution(env, ctx, now)
   let open = await findOpenQuestion(env, now)
   if (!open) {
     // First run after deploy: seed today's and tomorrow's question.
@@ -256,10 +280,11 @@ async function handleLeaderboard(env: Env): Promise<Response> {
   })
 }
 
-async function handleGetDuel(env: Env, duelId: number, url: URL): Promise<Response> {
+async function handleGetDuel(env: Env, duelId: number, url: URL, ctx: ExecutionContext): Promise<Response> {
   if (!Number.isInteger(duelId) || duelId < 1) {
     return json({ error: 'A valid duel id is required.' }, 400)
   }
+  await maybeSweepResolution(env, ctx, new Date())
   const duel = await findDuelById(env, duelId)
   if (!duel) {
     return json({ error: 'Duel not found.' }, 404)
