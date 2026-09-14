@@ -22,7 +22,9 @@ export function buildDuelJoinMessage(duelId: number, questionId: number, side: S
 /**
  * Compact duel summary for the home activity list. Built from the same
  * buildDuelState projection as the single-duel endpoint so status and
- * winner rules can never diverge between the two read paths.
+ * winner rules can never diverge between the two read paths. The
+ * opponent field here is the other player from the viewer's
+ * perspective, not the duel's joiner slot.
  */
 export interface DuelSummary {
   id: number
@@ -70,7 +72,9 @@ export async function listDuelsForWallet(env: Env, wallet: string, now: Date): P
       status: state.status,
       role: state.role as 'creator' | 'opponent',
       mySide: state.mySide as Side,
-      opponent: state.opponent,
+      opponent: state.role === 'opponent'
+        ? { wallet: state.creator.wallet, side: state.creator.side }
+        : state.opponent,
       question: {
         id: question.id,
         asset: question.asset,
