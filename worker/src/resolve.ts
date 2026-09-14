@@ -8,8 +8,8 @@ import type { Env, QuestionRow, Side } from './types'
  *
  * Sources, in order:
  * 1. CoinGecko history (primary, per the product spec)
- * 2. Exchange fallback per asset: Binance daily klines for BTC and ETH,
- *    KuCoin daily candles for NIM. Keyless public market data.
+ * 2. Exchange fallback per asset: Coinbase daily candles for BTC and
+ *    ETH, KuCoin daily candles for NIM. Keyless public market data.
  *
  * Both prices for one question always come from the same source so the
  * open/close comparison stays internally consistent. One retry per
@@ -30,8 +30,8 @@ const COINGECKO_ASSET_IDS: Record<string, string> = {
 }
 
 const EXCHANGE_FALLBACKS: Record<string, { source: string, symbol: string }> = {
-  BTC: { source: 'binance', symbol: 'BTCUSDT' },
-  ETH: { source: 'binance', symbol: 'ETHUSDT' },
+  BTC: { source: 'coinbase', symbol: 'BTC-USD' },
+  ETH: { source: 'coinbase', symbol: 'ETH-USD' },
   NIM: { source: 'kucoin', symbol: 'NIM-USDT' },
 }
 
@@ -41,19 +41,20 @@ interface PickSideRow {
 }
 
 async function fetchJson(url: string): Promise<unknown | null> {
-  const res = await fetch(url, {
-    // workerd sends no User-Agent by default and public price APIs
-    // reject such requests with 403, so identify ourselves.
-    headers: {
-      accept: 'application/json',
-      'user-agent': 'NimPulse-API/1.0 (https://nimpulse.vercel.app)',
-    },
-  })
-  if (!res.ok) return null
   try {
+    const res = await fetch(url, {
+      // workerd sends no User-Agent by default and public price APIs
+      // reject such requests with 403, so identify ourselves.
+      headers: {
+        accept: 'application/json',
+        'user-agent': 'NimPulse-API/1.0 (https://nimpulse.vercel.app)',
+      },
+    })
+    if (!res.ok) return null
     return await res.json()
   }
   catch {
+    // A network level throw becomes a normal source failure.
     return null
   }
 }
@@ -69,15 +70,18 @@ async function fetchCoinGeckoPrice(coinId: string, date: Date): Promise<number |
   return typeof usd === 'number' && usd > 0 ? usd : null
 }
 
-/** Binance 1d kline open is exactly the price at 00:00 UTC of the date. */
-async function fetchBinancePrice(symbol: string, date: Date): Promise<number | null> {
+/** Coinbase Exchange daily candle open is the price at 00:00 UTC of the date. */
+async function fetchCoinbasePrice(symbol: string, date: Date): Promise<number | null> {
   const startMs = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  // The API accepts millisecond start and end bounds but returns candle
+  // times in seconds, so the row match is done in seconds.
+  const startSeconds = startMs / 1000
   const body = await fetchJson(
-    `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&startTime=${startMs}&limit=1`,
-  ) as unknown[] | null
-  const row = body?.[0]
-  const open = Array.isArray(row) ? row[1] : null
-  return typeof open === 'string' && Number(open) > 0 ? Number(open) : null
+    `https://api.exchange.coinbase.com/products/${symbol}/candles?granularity=86400&start=${startMs}&end=${startMs + 86_400_000}`,
+  ) as number[][] | null
+  const row = body?.find(candle => Array.isArray(candle) && candle[0] === startSeconds)
+  const open = row ? row[3] : null
+  return typeof open === 'number' && open > 0 ? open : null
 }
 
 /** KuCoin 1day candle open is the price at 00:00 UTC of the date. */
@@ -109,10 +113,10 @@ async function trySource(source: string, coinId: string, symbol: string, openDat
       ])
       if (openPrice !== null && closePrice !== null) return { openPrice, closePrice, source }
     }
-    else if (source === 'binance') {
+    else if (source === 'coinbase') {
       const [openPrice, closePrice] = await Promise.all([
-        fetchBinancePrice(symbol, openDate),
-        fetchBinancePrice(symbol, closeDate),
+        fetchCoinbasePrice(symbol, openDate),
+        fetchCoinbasePrice(symbol, closeDate),
       ])
       if (openPrice !== null && closePrice !== null) return { openPrice, closePrice, source }
     }
@@ -158,51 +162,62 @@ export async function resolveDueQuestions(env: Env, now: Date): Promise<{ resolv
   let retryFlagged = 0
 
   for (const question of due.results) {
-    const resolveDate = new Date(question.resolves_at)
-    const prices = await fetchPricesForQuestion(question, resolveDate)
+    try {
+      const resolveDate = new Date(question.resolves_at)
+      const prices = await fetchPricesForQuestion(question, resolveDate)
 
-    if (prices === null) {
-      retryFlagged++
-      await env.DB.prepare('UPDATE questions SET needs_retry = 1 WHERE id = ? AND outcome IS NULL')
-        .bind(question.id)
+      if (prices === null) {
+        retryFlagged++
+        await env.DB.prepare('UPDATE questions SET needs_retry = 1 WHERE id = ? AND outcome IS NULL')
+          .bind(question.id)
+          .run()
+        console.error(JSON.stringify({
+          event: 'resolution_price_failure',
+          questionId: question.id,
+          asset: question.asset,
+        }))
+        continue
+      }
+
+      const outcome: Side = prices.closePrice > prices.openPrice ? 'yes' : 'no'
+
+      // Atomic claim: only one invocation can flip outcome, so a racing
+      // cron and request sweep cannot double-apply player or duel effects.
+      const claim = await env.DB.prepare(
+        `UPDATE questions
+         SET open_price = ?, close_price = ?, outcome = ?, needs_retry = 0, resolved_at = ?, price_source = ?
+         WHERE id = ? AND outcome IS NULL`,
+      )
+        .bind(prices.openPrice, prices.closePrice, outcome, now.toISOString(), prices.source, question.id)
         .run()
-      console.error(JSON.stringify({
-        event: 'resolution_price_failure',
+
+      if (Number(claim.meta.changes ?? 0) !== 1) {
+        continue
+      }
+
+      console.log(JSON.stringify({
+        event: 'question_resolved',
         questionId: question.id,
         asset: question.asset,
+        outcome,
+        source: prices.source,
+        openPrice: prices.openPrice,
+        closePrice: prices.closePrice,
+      }))
+
+      await applyResolutionToPlayers(env, question.id, outcome)
+      await applyResolutionToDuels(env, question.id, outcome, now)
+      resolved++
+    }
+    catch (error) {
+      // One bad question must never kill the rest of the pass.
+      console.error(JSON.stringify({
+        event: 'resolution_question_error',
+        questionId: question.id,
+        error: error instanceof Error ? error.message : String(error),
       }))
       continue
     }
-
-    const outcome: Side = prices.closePrice > prices.openPrice ? 'yes' : 'no'
-
-    // Atomic claim: only one invocation can flip outcome, so a racing
-    // cron and request sweep cannot double-apply player or duel effects.
-    const claim = await env.DB.prepare(
-      `UPDATE questions
-       SET open_price = ?, close_price = ?, outcome = ?, needs_retry = 0, resolved_at = ?, price_source = ?
-       WHERE id = ? AND outcome IS NULL`,
-    )
-      .bind(prices.openPrice, prices.closePrice, outcome, now.toISOString(), prices.source, question.id)
-      .run()
-
-    if (Number(claim.meta.changes ?? 0) !== 1) {
-      continue
-    }
-
-    console.log(JSON.stringify({
-      event: 'question_resolved',
-      questionId: question.id,
-      asset: question.asset,
-      outcome,
-      source: prices.source,
-      openPrice: prices.openPrice,
-      closePrice: prices.closePrice,
-    }))
-
-    await applyResolutionToPlayers(env, question.id, outcome)
-    await applyResolutionToDuels(env, question.id, outcome, now)
-    resolved++
   }
 
   return { resolved, retryFlagged }
