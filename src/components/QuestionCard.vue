@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import type { TodayQuestion } from '../lib/api'
+import type { TodayQuestion, UpcomingAsset } from '../lib/api'
 
 const props = defineProps<{
   question: TodayQuestion | null
+  upcoming: UpcomingAsset[]
   providerReady: boolean
   connected: boolean
   pickLoading: boolean
@@ -47,6 +48,16 @@ const countdown = computed(() => {
 
 const locked = computed(() => props.question?.myPick != null)
 const lockedSide = computed(() => props.question?.myPick?.side ?? null)
+
+function formatUpcomingDate(iso: string): string {
+  const date = new Date(iso)
+  const day = date.toLocaleString(undefined, { day: 'numeric', timeZone: 'UTC' })
+  const month = date.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' })
+  return `${day} ${month}`
+}
+
+const upcomingLabel = computed(() =>
+  props.upcoming.map(entry => `${entry.asset} ${formatUpcomingDate(entry.resolvesAt)}`).join(', '))
 </script>
 
 <template>
@@ -63,6 +74,10 @@ const lockedSide = computed(() => props.question?.myPick?.side ?? null)
       <h2 class="card-title question-text">
         {{ question.question }}
       </h2>
+
+      <p v-if="upcoming.length > 0" class="card-description mono">
+        Next markets: {{ upcomingLabel }}
+      </p>
 
       <p class="countdown mono" :class="{ 'countdown--expiring': remainingMs <= 60_000 && !expired }">
         <template v-if="!expired">Resolves in {{ countdown }}</template>

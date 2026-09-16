@@ -7,6 +7,7 @@ import {
   findOpenQuestion,
   findQuestionById,
   lastResolutionTime,
+  upcomingAssets,
 } from './questions'
 import { resolveDueQuestions } from './resolve'
 import {
@@ -229,6 +230,7 @@ async function handleToday(env: Env, url: URL, ctx: ExecutionContext): Promise<R
           myPick: todayPick ? { side: todayPick.side } : null,
         }
       : null,
+    upcoming: open ? upcomingAssets(new Date(open.resolves_at), 3) : [],
     recent: recent
       ? {
           id: recent.id,

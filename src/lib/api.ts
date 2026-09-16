@@ -30,8 +30,14 @@ export interface MeStats {
   totalPicks: number
 }
 
+export interface UpcomingAsset {
+  asset: string
+  resolvesAt: string
+}
+
 export interface TodayResponse {
   today: TodayQuestion | null
+  upcoming: UpcomingAsset[]
   recent: RecentQuestion | null
   me: MeStats | null
 }

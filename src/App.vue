@@ -685,6 +685,7 @@ async function copyHash() {
       <main v-if="!duelActive" class="card-stack">
         <QuestionCard
           :question="todayData?.today ?? null"
+          :upcoming="todayData?.upcoming ?? []"
           :provider-ready="providerState === 'ready'"
           :connected="connectDone"
           :pick-loading="pickFlow.loading"

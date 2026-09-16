@@ -23,6 +23,15 @@ export function assetForResolveDate(resolveDate: Date): string {
   return ROTATION[((days % ROTATION.length) + ROTATION.length) % ROTATION.length]
 }
 
+export function upcomingAssets(fromResolveDate: Date, count: number): { asset: string, resolvesAt: string }[] {
+  const upcoming: { asset: string, resolvesAt: string }[] = []
+  for (let index = 1; index <= count; index++) {
+    const resolveDate = new Date(fromResolveDate.getTime() + index * DAY_MS)
+    upcoming.push({ asset: assetForResolveDate(resolveDate), resolvesAt: resolveDate.toISOString() })
+  }
+  return upcoming
+}
+
 function questionText(asset: string, resolveDate: Date): string {
   const y = resolveDate.getUTCFullYear()
   const m = String(resolveDate.getUTCMonth() + 1).padStart(2, '0')
