@@ -2,12 +2,13 @@ import type { Env, QuestionRow } from './types'
 
 /*
  * Daily question generation. One question per UTC day, resolved at the
- * next 00:00 UTC. Assets rotate BTC, ETH, NIM deterministically by
- * resolution date so cron-created and seed-created rows always agree.
+ * next 00:00 UTC. Assets rotate BTC, ETH, NIM, SOL, XRP, DOGE
+ * deterministically by resolution date so cron-created and seed-created
+ * rows always agree.
  */
 
 const DAY_MS = 86_400_000
-export const ROTATION = ['BTC', 'ETH', 'NIM'] as const
+export const ROTATION = ['BTC', 'ETH', 'NIM', 'SOL', 'XRP', 'DOGE'] as const
 
 function startOfNextUtcDay(now: Date): Date {
   return new Date(Date.UTC(

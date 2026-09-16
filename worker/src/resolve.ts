@@ -8,8 +8,9 @@ import type { Env, QuestionRow, Side } from './types'
  *
  * Sources, in order:
  * 1. CoinGecko history (primary, per the product spec)
- * 2. Exchange fallback per asset: Coinbase daily candles for BTC and
- *    ETH, KuCoin daily candles for NIM. Keyless public market data.
+ * 2. Exchange fallback per asset: Coinbase daily candles for BTC,
+ *    ETH, SOL, XRP, and DOGE, KuCoin daily candles for NIM. Keyless
+ *    public market data.
  *
  * Both prices for one question always come from the same source so the
  * open/close comparison stays internally consistent. One retry per
@@ -27,12 +28,18 @@ const COINGECKO_ASSET_IDS: Record<string, string> = {
   BTC: 'bitcoin',
   ETH: 'ethereum',
   NIM: 'nimiq-2',
+  SOL: 'solana',
+  XRP: 'ripple',
+  DOGE: 'dogecoin',
 }
 
 const EXCHANGE_FALLBACKS: Record<string, { source: string, symbol: string }> = {
   BTC: { source: 'coinbase', symbol: 'BTC-USD' },
   ETH: { source: 'coinbase', symbol: 'ETH-USD' },
   NIM: { source: 'kucoin', symbol: 'NIM-USDT' },
+  SOL: { source: 'coinbase', symbol: 'SOL-USD' },
+  XRP: { source: 'coinbase', symbol: 'XRP-USD' },
+  DOGE: { source: 'coinbase', symbol: 'DOGE-USD' },
 }
 
 interface PickSideRow {

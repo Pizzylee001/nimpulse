@@ -5,9 +5,9 @@
 This repository contains the NimPulse foundation and the Phase 2a daily
 question engine: a styled home screen with today's market question, YES/NO
 picks signed with your Nimiq Pay wallet, and a Cloudflare Workers + D1
-backend that resolves questions from CoinGecko prices and tracks streaks.
-Staking, payments, and duel links arrive in later phases. See
-[WORKERS.md](WORKERS.md) for the backend.
+backend that resolves questions from CoinGecko prices with Coinbase and
+KuCoin fallbacks and tracks streaks. Staking, payments, and duel links
+arrive in later phases. See [WORKERS.md](WORKERS.md) for the backend.
 
 ## Stack
 

@@ -41,15 +41,17 @@ The D1 database is named `nimpulse`. The database id lives in
 ## Cron schedule
 
 - `5 0 * * *` (00:05 UTC): create the next day's question. Assets rotate
-  BTC, ETH, NIM by resolution date. Questions open immediately when
-  created by the cron, and pre-seeded future questions open at their
-  calendar midnight.
+  BTC, ETH, NIM, SOL, XRP, DOGE by resolution date. Questions open
+  immediately when created by the cron, and pre-seeded future questions
+  open at their calendar midnight.
 - `10 0 * * *` (00:10 UTC): resolve every question past its resolve time.
   Duel statuses update on resolution: open duels without an opponent
   become expired, locked duels become resolved with winner_wallet set
   from the outcome. Idempotent.
   Open and close prices come from the CoinGecko history endpoint (00:00
-  UTC snapshots). Strictly greater close than open means YES, anything
+  UTC snapshots). When CoinGecko fails, prices fall back to Coinbase
+  daily candles for BTC, ETH, SOL, XRP, and DOGE, and to KuCoin daily
+  candles for NIM. Strictly greater close than open means YES, anything
   else means NO, so ties count as NO. Each price fetch gets one retry.
   If a price source fails, the question is flagged `needs_retry` and the
   next cron pass tries again. No outcome is ever guessed.
