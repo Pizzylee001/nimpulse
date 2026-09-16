@@ -1,13 +1,34 @@
 # NimPulse
 
-1v1 market prediction duels inside Nimiq Pay. Call the market. Win the pot.
+1v1 prediction duels on a daily market question, inside Nimiq Pay.
 
-This repository contains the NimPulse foundation and the Phase 2a daily
-question engine: a styled home screen with today's market question, YES/NO
-picks signed with your Nimiq Pay wallet, and a Cloudflare Workers + D1
-backend that resolves questions from CoinGecko prices with Coinbase and
-KuCoin fallbacks and tracks streaks. Staking, payments, and duel links
-arrive in later phases. See [WORKERS.md](WORKERS.md) for the backend.
+Every day at 00:00 UTC, NimPulse opens one question: will BTC, ETH, NIM, SOL,
+XRP or DOGE close higher against USD over the next 24 hours? Pick YES or NO
+with your Nimiq wallet, create a duel, and send the link to a friend. They take
+the opposite side. The market decides.
+
+Free to play. No NIM is staked or paid out.
+
+## What is built
+
+- Daily question engine. One question per UTC day, rotating across six markets:
+  BTC, ETH, NIM, SOL, XRP and DOGE. A Cloudflare Worker creates and resolves
+  questions on a cron, so the app runs unattended.
+- Signed picks. Every pick is signed by the Nimiq wallet and verified server
+  side with Ed25519. The wallet address is derived from the public key, so a
+  pick cannot be forged or reassigned.
+- 1v1 duels. Create a duel on your pick, share the link, and an opponent joins
+  on the opposite side with their own signed proof. Duel status is computed
+  from stored data, so it stays correct between cron runs.
+- Streaks and record. Correct picks extend the streak, wrong picks reset it.
+  Wallet addresses are masked to the first six and last four characters.
+- Real price resolution. Open and close prices come from CoinGecko, with
+  Coinbase as the exchange fallback for BTC, ETH, SOL, XRP and DOGE, and KuCoin
+  for NIM. Both prices for one question always come from the same source. Ties
+  count as NO. If every source fails, the question is retried on the next pass.
+  No outcome is ever guessed.
+- Prediction history. Open any past question to see the outcome, the open and
+  close prices, and the price source.
 
 ## Stack
 
