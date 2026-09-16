@@ -7,6 +7,7 @@ import DuelView from './components/DuelView.vue'
 import PulseMark from './components/PulseMark.vue'
 import PredictionSheet from './components/PredictionSheet.vue'
 import QuestionCard from './components/QuestionCard.vue'
+import UpcomingMarketCard from './components/UpcomingMarketCard.vue'
 import RecentCard from './components/RecentCard.vue'
 import WalletSheet from './components/WalletSheet.vue'
 import { TESTNET_RECIPIENT } from './config'
@@ -91,6 +92,7 @@ const walletSheetOpen = ref(false)
 const todayData = ref<TodayResponse | null>(null)
 const apiLoading = ref(true)
 const apiError = ref<string | null>(null)
+const upcomingMarkets = computed(() => todayData.value?.upcoming ?? [])
 const pickFlow = reactive({ loading: false, side: null as Side | null, error: null as string | null })
 
 // Duel link routing: ?duel=<id> swaps the home content for the duel view.
@@ -246,18 +248,64 @@ const sendButtonLabel = computed(() => {
   return sendDone.value ? 'Sent' : 'Send 1 NIM'
 })
 
-async function fetchToday() {
+let todayFetchInFlight = false
+let todayFollowUp: Promise<void> | null = null
+let todayFollowUpDone: (() => void) | null = null
+
+function queueTodayFollowUp(): Promise<void> {
+  if (!todayFollowUp) {
+    todayFollowUp = new Promise<void>(resolve => {
+      todayFollowUpDone = resolve
+    })
+  }
+  return todayFollowUp
+}
+
+async function runTodayFetch(): Promise<void> {
+  const wallet = connectState.address
+  try {
+    const data = await getToday(wallet)
+    if (wallet !== connectState.address) return
+    todayData.value = data
+    apiError.value = null
+  }
+  catch (error) {
+    if (wallet !== connectState.address) return
+    apiError.value = error instanceof Error ? error.message : 'Could not load the daily question.'
+  }
+}
+
+async function fetchToday(): Promise<void> {
+  if (todayFetchInFlight) return queueTodayFollowUp()
+  todayFetchInFlight = true
   apiLoading.value = true
   apiError.value = null
   try {
-    todayData.value = await getToday(connectState.address)
-  }
-  catch (error) {
-    apiError.value = error instanceof Error ? error.message : 'Could not load the daily question.'
+    await runTodayFetch()
+    while (todayFollowUp) {
+      const done = todayFollowUpDone
+      todayFollowUp = null
+      todayFollowUpDone = null
+      await runTodayFetch()
+      if (done) done()
+    }
   }
   finally {
+    if (todayFollowUpDone) todayFollowUpDone()
+    todayFollowUp = null
+    todayFollowUpDone = null
     apiLoading.value = false
+    todayFetchInFlight = false
   }
+}
+
+let upcomingRefreshPending = false
+function handleUpcomingOpened() {
+  if (upcomingRefreshPending) return
+  upcomingRefreshPending = true
+  void fetchToday().finally(() => {
+    upcomingRefreshPending = false
+  })
 }
 
 let pollTimer: ReturnType<typeof setInterval> | undefined
@@ -685,7 +733,6 @@ async function copyHash() {
       <main v-if="!duelActive" class="card-stack">
         <QuestionCard
           :question="todayData?.today ?? null"
-          :upcoming="todayData?.upcoming ?? []"
           :provider-ready="providerState === 'ready'"
           :connected="connectDone"
           :pick-loading="pickFlow.loading"
@@ -698,6 +745,16 @@ async function copyHash() {
           @connect="connectWallet"
           @challenge="createSheetOpen = true"
         />
+
+        <div v-if="upcomingMarkets.length > 0" class="card-stack">
+          <UpcomingMarketCard
+            v-for="market in upcomingMarkets"
+            :key="market.resolvesAt"
+            :asset="market.asset"
+            :resolves-at="market.resolvesAt"
+            @opened="handleUpcomingOpened"
+          />
+        </div>
 
         <ActiveDuels
           v-if="connectDone"
