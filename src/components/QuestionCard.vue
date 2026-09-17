@@ -70,22 +70,16 @@ const lockedSide = computed(() => props.question?.myPick?.side ?? null)
         <template v-else>Resolving soon</template>
       </p>
 
-      <div v-if="locked && !expired" class="locked-box">
-        <p class="locked-line">
-          Your pick:
-          <strong :class="lockedSide === 'yes' ? 'side-yes' : 'side-no'">
-            {{ lockedSide === 'yes' ? 'YES' : 'NO' }}
-          </strong>
-        </p>
-        <p class="locked-sub">Waiting for resolution</p>
+      <div v-if="locked && !expired" class="locked-row">
+        <p class="locked-label">Locked On {{ lockedSide === 'yes' ? 'YES' : 'NO' }}</p>
         <button
-          class="btn btn-primary btn-challenge"
+          class="btn btn-outline-challenge"
           type="button"
           :disabled="!providerReady || challengeLoading"
           @click="emit('challenge')"
         >
           <span v-if="challengeLoading" class="spinner" aria-hidden="true" />
-          Challenge with {{ lockedSide === 'yes' ? 'YES' : 'NO' }}
+          Challenge
         </button>
       </div>
 
@@ -148,3 +142,31 @@ const lockedSide = computed(() => props.question?.myPick?.side ?? null)
     </template>
   </section>
 </template>
+
+<style scoped>
+/* Locked state: the pick is set, challenging stays optional. */
+.locked-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.locked-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.btn-outline-challenge {
+  flex-shrink: 0;
+  background-color: transparent;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-button);
+  color: var(--primary);
+}
+
+.btn-outline-challenge:active:not(:disabled) {
+  background-color: var(--surface-raised);
+}
+</style>

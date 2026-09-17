@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { MeStats, RecentQuestion } from '../lib/api'
+import type { RecentQuestion } from '../lib/api'
 
 const props = defineProps<{
   recent: RecentQuestion | null
-  me: MeStats | null
 }>()
 
 const emit = defineEmits<{ open: [questionId: number] }>()
@@ -55,7 +54,6 @@ function formatPrice(value: number | null): string {
         </span>
       </template>
       <template v-else>No pick</template>
-      <span v-if="me" class="streak mono">&middot; Streak: {{ me.currentStreak }}</span>
     </p>
   </button>
 </template>

@@ -712,6 +712,9 @@ async function copyHash() {
           </button>
         </div>
         <p class="tagline">Call the market. Win the pot.</p>
+        <p v-if="todayData?.me" class="streak-line mono">
+          Streak: {{ todayData.me.currentStreak }}
+        </p>
         <p class="hero-sub">1v1 market prediction duels inside Nimiq Pay.</p>
         <PulseMark variant="line" />
         <p v-if="providerState === 'connecting'" class="status-line">
@@ -765,7 +768,6 @@ async function copyHash() {
 
         <RecentCard
           :recent="todayData?.recent ?? null"
-          :me="todayData?.me ?? null"
           @open="openPrediction"
         />
 
@@ -887,3 +889,13 @@ async function copyHash() {
     />
   </div>
 </template>
+
+<style scoped>
+/* Compact streak line under the tagline, present only once stats load. */
+.streak-line {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+</style>

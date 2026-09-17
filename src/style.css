@@ -511,16 +511,6 @@ body {
   transform: scale(0.98);
 }
 
-.locked-box {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  background-color: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-button);
-}
-
 .locked-line {
   margin: 0;
   color: var(--text-muted);
@@ -528,12 +518,6 @@ body {
 
 .locked-line strong {
   font-size: 16px;
-}
-
-.locked-sub {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--text-small);
 }
 
 .side-yes {
@@ -731,11 +715,6 @@ button.wallet-pill:focus-visible {
   .sheet {
     animation: none;
   }
-}
-
-/* Challenge action inside the locked pick box */
-.btn-challenge {
-  margin-top: 8px;
 }
 
 /* Duel view */

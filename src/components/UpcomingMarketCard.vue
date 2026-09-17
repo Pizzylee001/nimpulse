@@ -55,10 +55,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="card card--compact">
+  <section class="card question-card">
     <div class="card-top">
       <span class="card-eyebrow">{{ asset }}</span>
-      <span class="countdown mono">{{ countdown }}</span>
+      <span class="chip chip--idle">
+        <span class="chip-dot" aria-hidden="true" />
+        Upcoming
+      </span>
     </div>
+    <p class="countdown mono">{{ countdown }}</p>
   </section>
 </template>
